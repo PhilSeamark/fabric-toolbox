@@ -1,6 +1,8 @@
-# Semantic Model MCP Server (v0.3.0)
+# Semantic Model MCP Server (v0.4.0)
 
 A Model Context Protocol (MCP) server for connecting to Microsoft Fabric and Power BI semantic models. This server provides tools to browse workspaces, list datasets, retrieve model definitions (TMSL), execute DAX queries, and create or modify semantic models against semantic models.
+
+**🆕 NEW: Interactive Dash Dashboards** - Professional, interactive web-based dashboards for data visualization and business intelligence!
 
 **🆕 NEW: Best Practice Analyzer** - Now includes comprehensive analysis of semantic models against 71 industry best practice rules!
 
@@ -25,6 +27,10 @@ Co-pilot in VS Code has far fewer limitations than some MCP Clients and can also
 - **Microsoft Learn Integration**: Search and access official Microsoft documentation, tutorials, and best practices
 - **TMSL Validation**: Enhanced TMSL structure validation with detailed error reporting
 - **Workspace Navigation**: Get workspace IDs and navigate between different environments
+- **🆕 Interactive Dash Dashboards**: Professional web-based dashboards with real-time interactivity, data filtering, and enterprise-grade visualization
+- **🆕 Chart Generation & Visualization**: Create interactive charts, line graphs, bar charts, scatter plots, and comprehensive dashboards from DAX query results
+- **🆕 Weight Tracking Dashboard**: Specialized dashboard for fitness and health data tracking with trend analysis and progress monitoring
+- **🆕 Business Intelligence Platform**: Transform from simple chart generation to full BI dashboard capabilities with Plotly and Dash integration
 - **🆕 Best Practice Analyzer (BPA)**: Comprehensive analysis of semantic models against industry best practices and Microsoft recommendations
 - **🆕 Power BI Desktop Detection**: Automatically detect and connect to local Power BI Desktop instances for development and testing
 
@@ -304,6 +310,202 @@ AI: [Searches Microsoft Learn for specific DAX patterns and recommendations]
 5. **✅ Verify Fixes**: `"Re-analyze the model after applying BPA recommendations"`
 
 The Best Practice Analyzer ensures your semantic models follow Microsoft's recommended patterns and industry standards, resulting in better performance, maintainability, and user experience! 🎉
+
+## 📊 Interactive Dash Dashboards
+
+The Semantic Model MCP Server now includes powerful **Interactive Dashboard** capabilities powered by **Dash** (Plotly's web application framework), transforming it from a simple visualization tool into a comprehensive **Business Intelligence Platform**.
+
+### 🚀 What are Dash Dashboards?
+
+Dash dashboards are **professional, interactive web applications** that provide:
+
+- **🎮 Real-time Interactivity**: Full user controls, not just hover tooltips
+- **📱 Mobile Responsive**: Professional interface that works on any device  
+- **🔄 Live Data Integration**: Can refresh data from Power BI in real-time
+- **👥 Multi-user Access**: Share dashboards across teams
+- **📤 Export Capabilities**: PDF, PNG, CSV downloads
+- **🎨 Enterprise Styling**: Professional appearance suitable for executives
+
+### 📈 Dashboard Types Available
+
+#### 1. **Weight Tracking Dashboard**
+Specialized dashboard for fitness and health monitoring:
+- **Interactive Line Charts**: Weight progression with zoom, pan, hover
+- **Summary Statistics**: Starting weight, current weight, total loss, daily averages
+- **Date Range Filtering**: Focus on specific time periods
+- **Daily Change Analysis**: Bar charts showing daily fluctuations 
+- **Cumulative Progress**: Visual representation of total achievement
+- **Trend Line Analysis**: Linear regression showing overall direction
+- **Mobile Responsive**: Access your progress anywhere
+
+#### 2. **DAX Analysis Dashboard** 
+General-purpose dashboard for any DAX query results:
+- **Multiple Chart Types**: Line, bar, scatter, pie, heatmap
+- **Dynamic Filtering**: User-controlled data filtering and sorting
+- **Statistical Analysis**: Automatic summary statistics
+- **Export Functions**: Download charts and data
+- **Drill-down Capabilities**: Interactive data exploration
+
+#### 3. **Business Intelligence Dashboard**
+Enterprise-grade BI platform with:
+- **Real-time Data Refresh**: Live connection to Power BI datasets
+- **KPI Monitoring**: Key performance indicator cards
+- **Multi-chart Layouts**: Comprehensive analytical views
+- **Custom Themes**: Branding and styling options
+- **Authentication**: User management and security
+
+#### 4. **Multi-Chart Dashboard**
+Comprehensive visualization platform:
+- **Side-by-side Analysis**: Compare multiple datasets
+- **Coordinated Filtering**: Changes in one chart affect others
+- **Responsive Layout**: Adapts to screen size
+- **Interactive Legend**: Show/hide data series
+
+### 🛠️ Available Dashboard Tools
+
+#### **create_interactive_weight_dashboard**
+Creates specialized weight tracking dashboards:
+```
+#semantic_model_mcp_server create an interactive weight dashboard from my DAX results
+```
+
+#### **launch_dax_analysis_dashboard**  
+Creates general DAX analysis dashboards:
+```
+#semantic_model_mcp_server create a dashboard from this DAX query with line and bar charts
+```
+
+#### **execute_dax_with_dashboard**
+Combined DAX execution and dashboard creation:
+```
+#semantic_model_mcp_server execute this DAX query and create an interactive dashboard
+```
+
+#### **list_active_dashboards**
+Manage running dashboard instances:
+```
+#semantic_model_mcp_server show me all currently running dashboards
+```
+
+#### **create_comprehensive_bi_dashboard**
+Enterprise BI dashboard with multiple data sources:
+```
+#semantic_model_mcp_server create a comprehensive BI dashboard for [workspace] [dataset]
+```
+
+### 🎯 Dashboard vs Static Charts
+
+| Feature | Static Charts (Vega-Lite) | Interactive Dashboards (Dash) |
+|---------|---------------------------|-------------------------------|
+| **Interactivity** | Limited hover tooltips | Full web application controls |
+| **Real-time Updates** | None | Live data refresh |
+| **User Controls** | None | Filters, date pickers, dropdowns |
+| **Mobile Experience** | Basic responsive | Advanced mobile optimization |
+| **Sharing** | Static HTML files | Live web applications |
+| **Enterprise Features** | None | Authentication, security, themes |
+| **Data Export** | Screenshot only | PDF, PNG, CSV downloads |
+| **Multi-user** | File sharing | Concurrent web access |
+| **Customization** | Limited | Extensive themes and styling |
+| **Professional Use** | Personal/development | Executive presentations |
+
+### 💼 Business Intelligence Use Cases
+
+#### **Personal Analytics**
+- **Fitness Tracking**: Weight, exercise, health metrics
+- **Financial Monitoring**: Expenses, savings, investments
+- **Project Management**: Task completion, time tracking
+
+#### **Team Dashboards**
+- **Sales Performance**: Revenue, targets, pipeline analysis
+- **Operations Monitoring**: KPIs, service levels, efficiency metrics
+- **Marketing Analytics**: Campaign performance, lead generation
+
+#### **Executive Reporting**
+- **Financial Dashboards**: P&L, cash flow, budget vs actual
+- **Strategic KPIs**: Growth metrics, market share, customer satisfaction
+- **Risk Management**: Compliance, security, operational risk
+
+### 🔧 Technical Architecture
+
+#### **Dashboard Lifecycle**
+1. **Creation**: Generate dashboard from DAX query results
+2. **Launch**: Start web server on available port (8050-8100)
+3. **Access**: Open in browser automatically
+4. **Interaction**: Real-time user interaction and filtering
+5. **Management**: Monitor, update, or stop dashboards
+
+#### **Port Management**
+- **Automatic Allocation**: Finds available ports automatically
+- **Multi-dashboard Support**: Run multiple dashboards simultaneously
+- **Conflict Resolution**: Handles port conflicts gracefully
+
+#### **Data Integration**
+- **DAX Query Results**: Convert query results to interactive charts
+- **Live Power BI Connection**: Real-time data refresh (enterprise feature)
+- **Multiple Data Sources**: Combine data from different models
+
+### 📱 Mobile & Responsive Design
+
+All dashboards are fully responsive and work perfectly on:
+- **📱 Mobile Phones**: Touch-optimized controls
+- **📱 Tablets**: Optimized layouts and interactions  
+- **💻 Laptops**: Full desktop experience
+- **🖥️ Large Monitors**: Scaled for presentations
+
+### 🎨 Professional Styling
+
+#### **Built-in Themes**
+- **Default**: Clean, modern business theme
+- **Dark Mode**: Professional dark theme for presentations
+- **Light Mode**: Bright, clean appearance
+- **Custom**: Branded themes with company colors
+
+#### **Chart Styling**
+- **Professional Color Palettes**: Business-appropriate colors
+- **Typography**: Clean, readable fonts
+- **Responsive Layouts**: Adapts to screen size
+- **Export Quality**: High-resolution outputs
+
+### 🚀 Getting Started with Dashboards
+
+#### **Quick Start - Weight Tracking**
+```
+1. Execute DAX query: "Get my weight readings from Power BI"
+2. Create dashboard: "Create an interactive weight tracking dashboard"  
+3. Explore: Open browser, interact with charts, filter dates
+4. Share: Send dashboard URL to others
+```
+
+#### **Business Analytics Workflow**
+```
+1. Connect to dataset: "List datasets in my workspace"
+2. Query data: "Execute DAX query for sales performance"
+3. Create dashboard: "Create a business intelligence dashboard"
+4. Customize: Add filters, modify chart types
+5. Present: Share with stakeholders for decision making
+```
+
+#### **Development Testing**
+```
+1. Connect to local Power BI: "Detect local Power BI Desktop instances"
+2. Test queries: "Execute DAX against local model" 
+3. Create test dashboard: "Generate dashboard for testing"
+4. Validate: Check data accuracy and performance
+5. Deploy: Move to production environment
+```
+
+### 🎉 Dash Integration Benefits
+
+The **Dash integration elevates the Semantic Model MCP Server** from a simple visualization tool to a **comprehensive Business Intelligence platform**:
+
+- **🎯 Enterprise Ready**: Professional dashboards suitable for business use
+- **🔄 Real-time Capable**: Live data refresh and monitoring
+- **👥 Collaborative**: Multi-user access and sharing
+- **📱 Modern Interface**: Responsive, mobile-friendly design
+- **🎨 Professional**: Executive-grade appearance and functionality
+- **🔧 Extensible**: Easy to add new dashboard types and features
+
+Transform your data analysis from static charts to **interactive business intelligence** with professional Dash dashboards! 🏆
 
 ## Prerequisites
 

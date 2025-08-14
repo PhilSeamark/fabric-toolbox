@@ -12,6 +12,7 @@ from tools.fabric_metadata import list_workspaces, list_datasets, get_workspace_
 from tools.bpa_tools import register_bpa_tools
 from tools.powerbi_desktop_tools import register_powerbi_desktop_tools
 from tools.microsoft_learn_tools import register_microsoft_learn_tools
+from tools.chart_tools import register_chart_tools
 import urllib.parse
 from src.helper import count_nodes_with_name
 from src.tmsl_validator import validate_tmsl_structure
@@ -50,6 +51,7 @@ mcp = FastMCP(
     - Get Microsoft Learn Content by URL (NEW)
     - **🆕 Best Practice Analyzer (BPA) Tools (NEW)**
     - **🆕 Power BI Desktop Detection Tools (NEW)**
+    - **🆕 Chart Generation and Visualization Tools (NEW)**
 
     ## 🆕 Best Practice Analyzer (BPA) Features:
     The server now includes a comprehensive Best Practice Analyzer that evaluates semantic models against industry best practices:
@@ -98,6 +100,64 @@ mcp = FastMCP(
       **IMPORTANT**: Always refer to https://learn.microsoft.com/en-us/analysis-services/tmsl/tmsl-reference-tabular-objects for authoritative TMSL syntax and schema validation
     - **DirectLake** - Implementation guides, best practices, and troubleshooting
     - **Power BI** - Features, configuration, and advanced techniques
+
+    ## 🎨 Chart Generation and Visualization Tools (NEW):
+    The server now includes comprehensive chart generation capabilities that can automatically create visualizations from DAX query results.
+    
+    **Available Chart Generation Tools:**
+    - `generate_chart_from_dax_results` - Generate charts from existing DAX query results
+    - `analyze_dax_results_for_charts` - Analyze data structure and suggest optimal chart types
+    - `execute_dax_with_visualization` - Execute DAX query and auto-generate charts (Power BI Service)
+    - `execute_local_dax_with_visualization` - Execute DAX query and auto-generate charts (Local Power BI Desktop)
+    - `create_comprehensive_dashboard` - Create multi-chart dashboards for table analysis
+    
+    **Supported Chart Types:**
+    - **Line Charts** - Perfect for time series and trend analysis
+    - **Bar Charts** - Ideal for categorical comparisons (horizontal and vertical)
+    - **Pie Charts** - Great for showing proportions and distributions
+    - **Scatter Plots** - Excellent for correlation analysis between numeric variables
+    - **Heatmaps** - Visualize correlation matrices and relationships
+    - **Comprehensive Dashboards** - Multi-chart views with summary statistics
+    - **Auto-Generated Charts** - AI-powered chart type selection based on data characteristics
+    
+    **Chart Generation Features:**
+    - **Interactive Charts** - HTML-based interactive visualizations using Vega-Lite
+    - **Static Charts** - High-quality PNG charts using Matplotlib
+    - **Auto-Detection** - Intelligent chart type suggestions based on data structure
+    - **Custom Styling** - Professional themes and color schemes
+    - **Multiple Formats** - Support for both web-ready and print-ready outputs
+    - **Comprehensive Reports** - Markdown reports with analysis and insights
+    
+    **Example Chart Generation Usage:**
+    ```
+    # Execute DAX query and auto-generate visualizations
+    result = execute_dax_with_visualization(
+        "MyWorkspace", "MyDataset", 
+        "EVALUATE SUMMARIZE(Sales, Sales[Category], \"Total\", SUM(Sales[Amount]))",
+        auto_charts=True
+    )
+    
+    # Generate specific chart type from existing DAX results
+    chart = generate_chart_from_dax_results(
+        dax_results, "bar", 
+        chart_title="Sales by Category",
+        interactive=True
+    )
+    
+    # Create comprehensive dashboard for a table
+    dashboard = create_comprehensive_dashboard(
+        table_name="Sales",
+        workspace_name="MyWorkspace",
+        dataset_name="MyDataset",
+        dashboard_title="Sales Analysis Dashboard"
+    )
+    ```
+    
+    **Chart Output Files:**
+    - Charts are saved to the `output` directory
+    - Interactive charts: `.html` files (can be opened in browser)
+    - Static charts: `.png` files (high resolution, 300 DPI)
+    - Reports: `.md` files with analysis summaries
     - **Microsoft Fabric** - Data engineering, analytics, and integration patterns
     - **Analysis Services** - Tabular models, performance optimization, and administration
     - **Data modeling** - Star schema design, relationships, and performance tuning
@@ -1452,6 +1512,17 @@ def main():
     register_bpa_tools(mcp)
     register_powerbi_desktop_tools(mcp)
     register_microsoft_learn_tools(mcp)
+    register_chart_tools(mcp)  # Legacy Vega-Lite charts
+    
+    # Register new Dash dashboard tools
+    try:
+        from tools.dash_tools import register_dash_tools
+        register_dash_tools(mcp)
+        logging.info("Dash dashboard tools registered successfully")
+    except ImportError as e:
+        logging.warning(f"Dash tools not available: {e}")
+    except Exception as e:
+        logging.error(f"Error registering Dash tools: {e}")
 
     logging.info("Starting Semantic Model MCP Server")
     mcp.run()
