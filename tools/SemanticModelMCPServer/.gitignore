@@ -1,0 +1,131 @@
+# Semantic Model MCP Server - .gitignore
+
+# Output folder - Generated dashboards and temporary files
+output/
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.env
+
+# IDE and editor files
+.vscode/
+.vs/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+temp/
+logs/
+
+# Analysis Services and Power BI temporary files
+*.asdatabase
+*.deploymenttargets
+*.deploymentoptions
+*.xmla
+
+# Azure authentication cache
+.azure/
+*.token
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# pytest cache
+.pytest_cache/
+.coverage
+
+# mypy cache
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Package manager files
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Sensitive configuration files
+config.json
+secrets.json
+.secrets
+.env.local
+.env.production
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Documentation build
+docs/_build/
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Windows specific
+*.lnk
+desktop.ini
+
+# macOS specific
+.AppleDouble
+.LSOverride
+Icon?
+
+# Linux specific
+*~
+
+# Custom dashboard outputs and generated files
+dashboard_*.html
+chart_*.png
+report_*.pdf
+analysis_*.xlsx
+
+# Test outputs
+test_results/
+test_output/
+
+# Local development files
+local_config.py
+dev_settings.json
