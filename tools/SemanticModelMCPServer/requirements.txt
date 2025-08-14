@@ -16,6 +16,16 @@ pyodbc>=4.0.0
 # Process monitoring for Power BI Desktop detection
 psutil>=5.9.0
 
+# Interactive web dashboard framework
+dash>=2.14.0
+
+# Data processing and numerical computing
+numpy>=1.24.0
+pandas>=2.0.0
+
+# Interactive plotting and charting
+plotly>=5.15.0
+
 # URL parsing (built-in, but ensuring compatibility)
 urllib3>=2.0.0
 
