@@ -20,6 +20,31 @@ import time
 from datetime import datetime, timedelta
 from prompts import register_prompts
 from __version__ import __version__, __description__
+import decimal
+
+# Custom JSON encoder to handle .NET types
+class CustomJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        # Handle .NET types that can't be directly serialized
+        if str(type(obj)) == "<class 'System.Decimal'>":
+            # Convert to Python Decimal, then to float for JSON compatibility
+            return float(decimal.Decimal(str(obj)))
+        elif str(type(obj)) == "<class 'System.Int64'>":
+            return int(str(obj))
+        elif str(type(obj)) == "<class 'System.Int32'>":
+            return int(str(obj))
+        elif str(type(obj)) == "<class 'System.Double'>":
+            return float(str(obj))
+        elif str(type(obj)) == "<class 'System.String'>":
+            return str(obj)
+        elif str(type(obj)) == "<class 'System.Boolean'>":
+            return bool(obj)
+        elif hasattr(obj, 'isoformat'):  # DateTime objects
+            return obj.isoformat()
+        # Handle Python decimal.Decimal objects
+        elif isinstance(obj, decimal.Decimal):
+            return float(obj)
+        return super().default(obj)
 
 # Try to import pyodbc - it's needed for SQL Analytics Endpoint queries
 try:
@@ -52,6 +77,7 @@ mcp = FastMCP(
     - **🆕 Best Practice Analyzer (BPA) Tools (NEW)**
     - **🆕 Power BI Desktop Detection Tools (NEW)**
     - **🆕 Chart Generation and Visualization Tools (NEW)**
+    - **🆕 Tabular Object Model (TOM) Tools (NEW)**
 
     ## 🆕 Best Practice Analyzer (BPA) Features:
     The server now includes a comprehensive Best Practice Analyzer that evaluates semantic models against industry best practices:
@@ -152,6 +178,69 @@ mcp = FastMCP(
         dashboard_title="Sales Analysis Dashboard"
     )
     ```
+    
+    ## 🚀 Tabular Object Model (TOM) Tools (NEW):
+    The server now includes advanced TOM-based tools for semantic model manipulation, providing a superior alternative to TMSL for many operations.
+    
+    **TOM Advantages over TMSL:**
+    - **Incremental Changes** - Add/modify individual objects without risk of deleting existing ones
+    - **Object-Oriented API** - Work with strongly-typed objects instead of complex JSON
+    - **Built-in Validation** - Automatic relationship management and constraint checking
+    - **Simpler Syntax** - More intuitive programming model for common operations
+    - **Enhanced Safety** - No need to reconstruct entire table definitions
+    
+    **Available TOM Tools:**
+    - `add_measure_using_tom_tool` - Add measures safely without affecting existing objects
+    - `test_tom_connection` - Test TOM connectivity and explore model structure
+    - **More TOM tools coming soon** - Relationships, columns, tables, hierarchies
+    
+    **TOM vs TMSL Comparison:**
+    ```
+    TMSL Approach (Current):
+    1. Get complete table definition
+    2. Parse complex JSON structure  
+    3. Add measure to measures array
+    4. Reconstruct entire table (risk of deletion)
+    5. Deploy with createOrReplace command
+    
+    TOM Approach (NEW):
+    1. Connect to model
+    2. Find target table
+    3. Create new measure object
+    4. Add to table.Measures collection
+    5. Call model.SaveChanges() - only adds the measure!
+    ```
+    
+    **TOM Use Cases:**
+    - **Safe Measure Addition** - Add measures without complex TMSL manipulation
+    - **Incremental Model Updates** - Modify specific objects without affecting others
+    - **Bulk Operations** - Update multiple objects in a single transaction
+    - **Model Validation** - Test changes before deployment
+    - **Development Workflows** - Easier programmatic model development
+    
+    **Example TOM Usage:**
+    ```
+    # Add a measure using TOM (much simpler than TMSL)
+    result = add_measure_using_tom_tool(
+        local_connection_string="Data Source=localhost:65304",
+        table_name="Sales",
+        measure_name="Total Revenue",
+        measure_expression="SUM(Sales[Amount])",
+        format_string="$#,##0.00",
+        description="Total sales revenue"
+    )
+    
+    # Test TOM connection
+    test_result = test_tom_connection(
+        local_connection_string="Data Source=localhost:65304"
+    )
+    ```
+    
+    **TOM Environment Support:**
+    - ✅ **Local Power BI Desktop** - Direct connection via Analysis Services port
+    - ✅ **Power BI Service** - XMLA endpoint for Premium workspaces
+    - ✅ **Azure Analysis Services** - Native TOM support
+    - ✅ **SQL Server Analysis Services** - Tabular models
     
     **Chart Output Files:**
     - Charts are saved to the `output` directory
@@ -784,7 +873,7 @@ def get_azure_token_status() -> str:
     return json.dumps(status, indent=2)
 
 @mcp.tool
-def execute_dax_query(workspace_name:str, dataset_name: str, dax_query: str, dataset_id: str = None) -> list[dict]:
+def execute_dax_query(workspace_name:str, dataset_name: str, dax_query: str, dataset_id: str = None) -> str:
     """Executes a DAX query against the Power BI model.
     This tool connects to the specified Power BI workspace and dataset name, executes the provided DAX query,
     Use the dataset_name to specify the model to query and NOT the dataset ID.
@@ -803,27 +892,27 @@ def execute_dax_query(workspace_name:str, dataset_name: str, dax_query: str, dat
         clr.AddReference(os.path.join(dotnet_dir, "Microsoft.IdentityModel.Abstractions.dll"))
         clr.AddReference(os.path.join(dotnet_dir, "Microsoft.AnalysisServices.AdomdClient.dll"))
     except Exception as e:
-        return [{"error": f"Failed to load required .NET assemblies: {str(e)}", "error_type": "assembly_load_error"}]
+        return {"error": f"Failed to load required .NET assemblies: {str(e)}", "error_type": "assembly_load_error", "success": False}
 
     try:
         from Microsoft.AnalysisServices.AdomdClient import AdomdConnection ,AdomdDataReader  # type: ignore
     except ImportError as e:
-        return [{"error": f"Failed to import ADOMD libraries: {str(e)}", "error_type": "import_error"}]
+        return {"error": f"Failed to import ADOMD libraries: {str(e)}", "error_type": "import_error", "success": False}
 
     # Validate authentication
     access_token = get_access_token()
     if not access_token:
-        return [{"error": "No valid access token available. Please check authentication.", "error_type": "authentication_error"}]
+        return {"error": "No valid access token available. Please check authentication.", "error_type": "authentication_error", "success": False}
 
     # Validate required parameters
     if not workspace_name or not workspace_name.strip():
-        return [{"error": "Workspace name is required and cannot be empty.", "error_type": "parameter_error"}]
+        return {"error": "Workspace name is required and cannot be empty.", "error_type": "parameter_error", "success": False}
     
     if not dataset_name or not dataset_name.strip():
-        return [{"error": "Dataset name is required and cannot be empty.", "error_type": "parameter_error"}]
+        return {"error": "Dataset name is required and cannot be empty.", "error_type": "parameter_error", "success": False}
     
     if not dax_query or not dax_query.strip():
-        return [{"error": "DAX query is required and cannot be empty.", "error_type": "parameter_error"}]
+        return {"error": "DAX query is required and cannot be empty.", "error_type": "parameter_error", "success": False}
 
     workspace_name_encoded = urllib.parse.quote(workspace_name)
     # Use URL-encoded workspace name and standard XMLA connection format
@@ -847,16 +936,59 @@ def execute_dax_query(workspace_name:str, dataset_name: str, dax_query: str, dat
             for i in range(reader.FieldCount):
                 # Handle different data types and null values
                 value = reader.GetValue(i)
+                column_name = str(reader.GetName(i))  # Ensure column name is Python string
+                
                 if value is None or str(value) == "":
-                    row[reader.GetName(i)] = None
-                elif hasattr(value, 'isoformat'):  # DateTime objects
-                    row[reader.GetName(i)] = value.isoformat()
+                    row[column_name] = None
                 else:
-                    row[reader.GetName(i)] = value
+                    # CRITICAL: Force immediate conversion to prevent System.Decimal from reaching FastMCP
+                    value_str = str(value)
+                    value_type = str(type(value))
+                    
+                    try:
+                        if "Decimal" in value_type:
+                            # Convert System.Decimal immediately to Python float
+                            row[column_name] = float(value_str)
+                        elif "Double" in value_type or "Single" in value_type:
+                            # Convert System.Double/Single immediately to Python float  
+                            row[column_name] = float(value_str)
+                        elif "Int64" in value_type or "Int32" in value_type or "Int16" in value_type:
+                            # Convert System.Int* immediately to Python int
+                            row[column_name] = int(value_str)
+                        elif "Boolean" in value_type:
+                            # Convert System.Boolean immediately to Python bool
+                            row[column_name] = value_str.lower() in ('true', '1', 'yes')
+                        elif "DateTime" in value_type and hasattr(value, 'isoformat'):
+                            # Convert DateTime objects to ISO string
+                            row[column_name] = value.isoformat()
+                        else:
+                            # For all other types, use string representation
+                            row[column_name] = value_str
+                    except (ValueError, OverflowError, AttributeError) as conversion_error:
+                        # If any conversion fails, use string representation
+                        print(f"Warning: Failed to convert {column_name} value '{value_str}' (type: {value_type}): {conversion_error}")
+                        row[column_name] = value_str
+            
             results.append(row)
         
         reader.Close()
-        return results
+        
+        # Get column names for metadata
+        column_names = []
+        if results:
+            column_names = list(results[0].keys())
+        
+        # Return structured response with proper numeric types preserved
+        # Since we've already converted System.Decimal to Python float above,
+        # we can safely return the Python object without JSON serialization
+        return {
+            "success": True,
+            "data": results,
+            "row_count": len(results),
+            "columns": column_names,
+            "workspace": workspace_name,
+            "dataset": dataset_name
+        }
         
     except Exception as e:
         error_msg = str(e).lower()
@@ -864,19 +996,19 @@ def execute_dax_query(workspace_name:str, dataset_name: str, dax_query: str, dat
         
         # Categorize different types of errors and provide helpful messages
         if "authentication" in error_msg or "unauthorized" in error_msg or "login" in error_msg:
-            return [{"error": f"Authentication failed: {error_details}. Please check your access token and permissions.", "error_type": "authentication_error"}]
+            return {"error": f"Authentication failed: {error_details}. Please check your access token and permissions.", "error_type": "authentication_error", "success": False}
         elif "workspace" in error_msg or "not found" in error_msg:
-            return [{"error": f"Workspace or dataset not found: {error_details}. Please verify workspace name '{workspace_name}' and dataset name '{dataset_name}' are correct.", "error_type": "not_found_error"}]
+            return {"error": f"Workspace or dataset not found: {error_details}. Please verify workspace name '{workspace_name}' and dataset name '{dataset_name}' are correct.", "error_type": "not_found_error", "success": False}
         elif "permission" in error_msg or "access" in error_msg or "forbidden" in error_msg:
-            return [{"error": f"Permission denied: {error_details}. You may not have sufficient permissions to query this dataset.", "error_type": "permission_error"}]
+            return {"error": f"Permission denied: {error_details}. You may not have sufficient permissions to query this dataset.", "error_type": "permission_error", "success": False}
         elif "syntax" in error_msg or "parse" in error_msg or "invalid" in error_msg:
-            return [{"error": f"DAX query syntax error: {error_details}. Please check your DAX query syntax.", "error_type": "dax_syntax_error", "query": dax_query}]
+            return {"error": f"DAX query syntax error: {error_details}. Please check your DAX query syntax.", "error_type": "dax_syntax_error", "query_provided": "yes", "success": False}
         elif "timeout" in error_msg or "timed out" in error_msg:
-            return [{"error": f"Query timeout: {error_details}. The query took too long to execute.", "error_type": "timeout_error"}]
+            return {"error": f"Query timeout: {error_details}. The query took too long to execute.", "error_type": "timeout_error", "success": False}
         elif "connection" in error_msg or "network" in error_msg:
-            return [{"error": f"Connection error: {error_details}. Please check your network connection and try again.", "error_type": "connection_error"}]
+            return {"error": f"Connection error: {error_details}. Please check your network connection and try again.", "error_type": "connection_error", "success": False}
         else:
-            return [{"error": f"Unexpected error executing DAX query: {error_details}", "error_type": "general_error", "query": dax_query}]
+            return {"error": f"Unexpected error executing DAX query: {error_details}", "error_type": "general_error", "query_provided": "yes", "success": False}
     
     finally:
         # Ensure connection is always closed
@@ -1505,6 +1637,880 @@ def get_model_definition(workspace_name:str = None, dataset_name:str=None) -> st
 
 
 
+def register_tom_tools(mcp_instance):
+    """Register TOM (Tabular Object Model) tools for enhanced semantic model operations."""
+    
+    from tools.tom_semantic_model_tools_python import (
+        tom_connect_to_model, 
+        tom_list_model_tables, 
+        tom_add_measure_to_model,
+        tom_update_measure_in_model,
+        tom_get_measure_info,
+        tom_add_table_to_model,
+        tom_update_table_in_model,
+        tom_delete_table_from_model,
+        tom_add_column_to_table,
+        tom_update_column_in_table,
+        tom_add_relationship_to_model,
+        # Enhanced functions with proper database selection
+        tom_connect_to_server_and_database,
+        tom_list_tables_by_database_name,
+        tom_add_measure_by_database_name,
+        # NEW: Complete model creation functions
+        tom_create_empty_semantic_model,
+        tom_add_data_source_expression,
+        tom_add_table_with_columns_and_partition,
+        tom_add_relationships_to_model,
+        tom_discover_lakehouse_schema,
+        tom_create_complete_model_from_lakehouse,
+        # NEW: Model refresh functions for relationship recalculation
+        tom_refresh_semantic_model,
+        tom_refresh_model_after_relationships
+    )
+    
+    @mcp_instance.tool()
+    def tom_add_measure_to_semantic_model(
+        connection_string: str,
+        table_name: str,
+        measure_name: str,
+        expression: str,
+        format_string: Optional[str] = None,
+        description: Optional[str] = None
+    ) -> str:
+        """
+        Add a measure to a semantic model using the Tabular Object Model (TOM).
+        
+        TOM provides a superior approach to TMSL for incremental model changes:
+        - Object-oriented API with strong typing
+        - Incremental changes without risk of deleting existing objects
+        - Built-in validation and relationship management
+        - No need to reconstruct entire table definitions
+        
+        This tool works with both Power BI Service and local Power BI Desktop instances.
+        
+        Args:
+            connection_string: Connection string for Analysis Services (e.g., "Data Source=localhost:65304" for local Desktop)
+            table_name: Target table name where the measure will be added
+            measure_name: Name of the new measure
+            expression: DAX expression for the measure (e.g., "SUM(Sales[Amount])")
+            format_string: Optional format string (e.g., "$#,##0.00", "0.00%")
+            description: Optional description for the measure
+            
+        Returns:
+            JSON string with operation results, including success status and measure details
+        """
+        return tom_add_measure_to_model(
+            connection_string=connection_string,
+            table_name=table_name,
+            measure_name=measure_name,
+            expression=expression,
+            format_string=format_string,
+            description=description
+        )
+    
+    @mcp_instance.tool()
+    def tom_connect_to_semantic_model(
+        connection_string: str
+    ) -> str:
+        """
+        Connect to a semantic model using TOM and get model information.
+        
+        This tool verifies that TOM can successfully connect to a semantic model
+        and provides information about the model structure.
+        
+        Args:
+            connection_string: Connection string for Analysis Services (e.g., "Data Source=localhost:65304" for local Desktop)
+            
+        Returns:
+            JSON string with connection results and model information
+        """
+        return tom_connect_to_model(connection_string)
+    
+    @mcp_instance.tool()
+    def tom_list_tables_in_model(
+        connection_string: str
+    ) -> str:
+        """
+        List all tables in a semantic model using TOM.
+        
+        This tool provides detailed information about tables, columns, and measures
+        in the semantic model using the Tabular Object Model.
+        
+        Args:
+            connection_string: Connection string for Analysis Services (e.g., "Data Source=localhost:65304" for local Desktop)
+            
+        Returns:
+            JSON string with table, column, and measure information
+        """
+        return tom_list_model_tables(connection_string)
+    
+    @mcp_instance.tool()
+    def tom_get_measure_details(
+        connection_string: str,
+        table_name: str,
+        measure_name: str
+    ) -> str:
+        """
+        Get detailed information about a specific measure using TOM.
+        
+        Args:
+            connection_string: Connection string for Analysis Services (e.g., "Data Source=localhost:65304" for local Desktop)
+            table_name: Name of the table containing the measure
+            measure_name: Name of the measure
+            
+        Returns:
+            JSON string with measure details
+        """
+        return tom_get_measure_info(connection_string, table_name, measure_name)
+
+    @mcp_instance.tool()
+    def tom_update_measure_in_semantic_model(
+        connection_string: str,
+        table_name: str,
+        measure_name: str,
+        expression: Optional[str] = None,
+        format_string: Optional[str] = None,
+        description: Optional[str] = None
+    ) -> str:
+        """
+        Update an existing measure in a semantic model using the Tabular Object Model (TOM).
+        
+        This tool allows you to modify specific properties of an existing measure without
+        affecting other measures or table structures. You can update:
+        - DAX expression
+        - Format string (e.g., "$#,##0.00", "0.00%")
+        - Description
+        
+        Only the properties you specify will be updated; others remain unchanged.
+        
+        Args:
+            connection_string: Connection string for Analysis Services (e.g., "Data Source=localhost:65304" for local Desktop)
+            table_name: Name of the table containing the measure
+            measure_name: Name of the measure to update
+            expression: Optional new DAX expression for the measure
+            format_string: Optional new format string for the measure
+            description: Optional new description for the measure
+            
+        Returns:
+            JSON string with operation results, including what changes were made
+        """
+        return tom_update_measure_in_model(
+            connection_string=connection_string,
+            table_name=table_name,
+            measure_name=measure_name,
+            expression=expression,
+            format_string=format_string,
+            description=description
+        )
+
+    # ===== TABLE MANAGEMENT TOOLS =====
+    
+    @mcp_instance.tool()
+    def tom_add_table_to_semantic_model(
+        connection_string: str,
+        table_name: str,
+        description: Optional[str] = None
+    ) -> str:
+        """
+        Add a new table to a semantic model using TOM.
+        
+        Args:
+            connection_string: Connection string for Analysis Services (e.g., "Data Source=localhost:65304" for local Desktop)
+            table_name: Name of the new table
+            description: Optional description for the table
+            
+        Returns:
+            JSON string with operation results
+        """
+        return tom_add_table_to_model(
+            connection_string=connection_string,
+            table_name=table_name,
+            description=description
+        )
+    
+    @mcp_instance.tool()
+    def tom_update_table_in_semantic_model(
+        connection_string: str,
+        table_name: str,
+        new_name: Optional[str] = None,
+        description: Optional[str] = None
+    ) -> str:
+        """
+        Update an existing table in a semantic model using TOM.
+        
+        Args:
+            connection_string: Connection string for Analysis Services (e.g., "Data Source=localhost:65304" for local Desktop)
+            table_name: Current name of the table
+            new_name: Optional new name for the table
+            description: Optional new description for the table
+            
+        Returns:
+            JSON string with operation results
+        """
+        return tom_update_table_in_model(
+            connection_string=connection_string,
+            table_name=table_name,
+            new_name=new_name,
+            description=description
+        )
+    
+    @mcp_instance.tool()
+    def tom_delete_table_from_semantic_model(
+        connection_string: str,
+        table_name: str
+    ) -> str:
+        """
+        Delete a table from a semantic model using TOM.
+        
+        WARNING: This will permanently delete the table and all its columns, measures, and data!
+        
+        Args:
+            connection_string: Connection string for Analysis Services (e.g., "Data Source=localhost:65304" for local Desktop)
+            table_name: Name of the table to delete
+            
+        Returns:
+            JSON string with operation results
+        """
+        return tom_delete_table_from_model(
+            connection_string=connection_string,
+            table_name=table_name
+        )
+
+    # ===== COLUMN MANAGEMENT TOOLS =====
+    
+    @mcp_instance.tool()
+    def tom_add_column_to_semantic_table(
+        connection_string: str,
+        table_name: str,
+        column_name: str,
+        data_type: str = "String",
+        source_column: Optional[str] = None,
+        description: Optional[str] = None
+    ) -> str:
+        """
+        Add a new column to a table in a semantic model using TOM.
+        
+        Args:
+            connection_string: Connection string for Analysis Services (e.g., "Data Source=localhost:65304" for local Desktop)
+            table_name: Name of the table to add the column to
+            column_name: Name of the new column
+            data_type: Data type of the column (String, Int64, Double, Boolean, DateTime)
+            source_column: Optional source column reference for calculated columns
+            description: Optional description for the column
+            
+        Returns:
+            JSON string with operation results
+        """
+        return tom_add_column_to_table(
+            connection_string=connection_string,
+            table_name=table_name,
+            column_name=column_name,
+            data_type=data_type,
+            source_column=source_column,
+            description=description
+        )
+    
+    @mcp_instance.tool()
+    def tom_update_column_in_semantic_table(
+        connection_string: str,
+        table_name: str,
+        column_name: str,
+        new_name: Optional[str] = None,
+        description: Optional[str] = None,
+        expression: Optional[str] = None
+    ) -> str:
+        """
+        Update an existing column in a table using TOM.
+        
+        Args:
+            connection_string: Connection string for Analysis Services (e.g., "Data Source=localhost:65304" for local Desktop)
+            table_name: Name of the table containing the column
+            column_name: Current name of the column
+            new_name: Optional new name for the column
+            description: Optional new description for the column
+            expression: Optional new expression for calculated columns
+            
+        Returns:
+            JSON string with operation results
+        """
+        return tom_update_column_in_table(
+            connection_string=connection_string,
+            table_name=table_name,
+            column_name=column_name,
+            new_name=new_name,
+            description=description,
+            expression=expression
+        )
+
+    # ===== RELATIONSHIP MANAGEMENT TOOLS =====
+    
+    @mcp_instance.tool()
+    def tom_add_relationship_to_semantic_model(
+        connection_string: str,
+        from_table: str,
+        from_column: str,
+        to_table: str,
+        to_column: str,
+        cross_filtering_behavior: str = "OneDirection"
+    ) -> str:
+        """
+        Add a relationship between two tables in a semantic model using TOM.
+        
+        Args:
+            connection_string: Connection string for Analysis Services (e.g., "Data Source=localhost:65304" for local Desktop)
+            from_table: Name of the source table
+            from_column: Name of the source column
+            to_table: Name of the target table
+            to_column: Name of the target column
+            cross_filtering_behavior: Cross filtering behavior ("OneDirection", "BothDirections")
+            
+        Returns:
+            JSON string with operation results
+        """
+        return tom_add_relationship_to_model(
+            connection_string=connection_string,
+            from_table=from_table,
+            from_column=from_column,
+            to_table=to_table,
+            to_column=to_column,
+            cross_filtering_behavior=cross_filtering_behavior
+        )
+    
+    @mcp_instance.tool()
+    def tom_add_single_relationship_to_powerbi_service(
+        workspace_name: str,
+        dataset_name: str,
+        from_table: str,
+        from_column: str,
+        to_table: str,
+        to_column: str,
+        cross_filtering_behavior: str = "OneDirection"
+    ) -> str:
+        """
+        Add a single relationship to a Power BI Service semantic model using TOM with automatic authentication.
+        
+        This enhanced TOM function automatically handles Power BI Service authentication and connection string construction,
+        making it easy to add relationships to cloud-hosted semantic models without manual token management.
+        
+        Args:
+            workspace_name: The Power BI workspace name
+            dataset_name: The dataset/model name
+            from_table: Name of the source table
+            from_column: Name of the source column
+            to_table: Name of the target table
+            to_column: Name of the target column
+            cross_filtering_behavior: Cross filtering behavior ("OneDirection", "BothDirections")
+            
+        Returns:
+            JSON string with operation results, including success status and relationship details
+        """
+        import urllib.parse
+        import json
+        
+        # Get access token for Power BI Service authentication
+        access_token = get_access_token()
+        if not access_token:
+            return json.dumps({
+                "success": False,
+                "error": "No valid access token available. Please check authentication.",
+                "error_type": "authentication_error"
+            }, indent=2)
+        
+        # Validate required parameters
+        if not workspace_name or not workspace_name.strip():
+            return json.dumps({
+                "success": False,
+                "error": "Workspace name is required and cannot be empty.",
+                "error_type": "parameter_error"
+            }, indent=2)
+        
+        if not dataset_name or not dataset_name.strip():
+            return json.dumps({
+                "success": False,
+                "error": "Dataset name is required and cannot be empty.",
+                "error_type": "parameter_error"
+            }, indent=2)
+        
+        # Construct Power BI Service connection string WITHOUT catalog
+        # Let TOM select the database by name instead  
+        workspace_name_encoded = urllib.parse.quote(workspace_name)
+        server_connection_string = f"Data Source=powerbi://api.powerbi.com/v1.0/myorg/{workspace_name_encoded};Password={access_token};"
+        
+        # Create relationship list for the enhanced function
+        relationships_list = [{
+            "from_table": from_table,
+            "from_column": from_column,
+            "to_table": to_table,
+            "to_column": to_column,
+            "cross_filtering_behavior": cross_filtering_behavior
+        }]
+        
+        # Use enhanced TOM function with fixed relationship logic
+        return tom_add_relationships_to_model(
+            connection_string=server_connection_string,
+            database_name=dataset_name,
+            relationships_info=relationships_list
+        )
+
+    # Enhanced TOM functions for Power BI Service
+    @mcp_instance.tool()
+    def tom_add_measure_to_powerbi_service(
+        workspace_name: str,
+        dataset_name: str,
+        table_name: str,
+        measure_name: str,
+        expression: str,
+        format_string: Optional[str] = None,
+        description: Optional[str] = None
+    ) -> str:
+        """
+        Add a measure to a Power BI Service semantic model using TOM with automatic authentication.
+        
+        This enhanced TOM function automatically handles Power BI Service authentication and connection string construction,
+        making it easy to add measures to cloud-hosted semantic models without manual token management.
+        
+        Args:
+            workspace_name: The Power BI workspace name
+            dataset_name: The dataset/model name
+            table_name: Target table name where the measure will be added
+            measure_name: Name of the new measure
+            expression: DAX expression for the measure (e.g., "SUM(Sales[Amount])")
+            format_string: Optional format string (e.g., "$#,##0.00", "0.00%")
+            description: Optional description for the measure
+            
+        Returns:
+            JSON string with operation results, including success status and measure details
+        """
+        import urllib.parse
+        
+        # Get access token for Power BI Service authentication
+        access_token = get_access_token()
+        if not access_token:
+            return json.dumps({
+                "success": False,
+                "error": "No valid access token available. Please check authentication.",
+                "error_type": "authentication_error"
+            }, indent=2)
+        
+        # Validate required parameters
+        if not workspace_name or not workspace_name.strip():
+            return json.dumps({
+                "success": False,
+                "error": "Workspace name is required and cannot be empty.",
+                "error_type": "parameter_error"
+            }, indent=2)
+        
+        if not dataset_name or not dataset_name.strip():
+            return json.dumps({
+                "success": False,
+                "error": "Dataset name is required and cannot be empty.",
+                "error_type": "parameter_error"
+            }, indent=2)
+        
+        # Construct Power BI Service connection string WITHOUT catalog
+        # Let TOM select the database by name instead  
+        workspace_name_encoded = urllib.parse.quote(workspace_name)
+        server_connection_string = f"Data Source=powerbi://api.powerbi.com/v1.0/myorg/{workspace_name_encoded};Password={access_token};"
+        
+        # Use enhanced TOM function with explicit database selection
+        return tom_add_measure_by_database_name(
+            server_connection_string=server_connection_string,
+            database_name=dataset_name,
+            table_name=table_name,
+            measure_name=measure_name,
+            expression=expression,
+            format_string=format_string,
+            description=description
+        )
+
+    @mcp_instance.tool()
+    def tom_list_tables_in_powerbi_service(
+        workspace_name: str,
+        dataset_name: str
+    ) -> str:
+        """
+        List all tables in a Power BI Service semantic model using TOM with automatic authentication.
+        
+        Args:
+            workspace_name: The Power BI workspace name
+            dataset_name: The dataset/model name
+            
+        Returns:
+            JSON string with table, column, and measure information
+        """
+        import urllib.parse
+        
+        # Get access token for Power BI Service authentication
+        access_token = get_access_token()
+        if not access_token:
+            return json.dumps({
+                "success": False,
+                "error": "No valid access token available. Please check authentication.",
+                "error_type": "authentication_error"
+            }, indent=2)
+        
+        # Construct Power BI Service connection string WITHOUT catalog
+        # Let TOM select the database by name instead
+        workspace_name_encoded = urllib.parse.quote(workspace_name)
+        server_connection_string = f"Data Source=powerbi://api.powerbi.com/v1.0/myorg/{workspace_name_encoded};Password={access_token};"
+        
+        # Use enhanced TOM function with explicit database selection
+        return tom_list_tables_by_database_name(
+            server_connection_string=server_connection_string,
+            database_name=dataset_name
+        )
+
+    @mcp_instance.tool()
+    def tom_add_relationships_to_powerbi_service(
+        workspace_name: str,
+        dataset_name: str,
+        relationships_info: str  # JSON string with relationship list
+    ) -> str:
+        """
+        Add relationships to a Power BI Service semantic model using TOM with automatic authentication.
+        
+        This enhanced TOM function automatically handles Power BI Service authentication and connection string construction,
+        making it easy to add relationships to cloud-hosted semantic models without manual token management.
+        
+        Args:
+            workspace_name: The Power BI workspace name
+            dataset_name: The dataset/model name
+            relationships_info: JSON string with list of relationship dictionaries
+                Each relationship should have: from_table, from_column, to_table, to_column
+                Optional: cross_filtering_behavior ("OneDirection" or "BothDirections")
+            
+        Returns:
+            JSON string with operation results, including success status and relationship details
+        """
+        import urllib.parse
+        import json
+        
+        # Get access token for Power BI Service authentication
+        access_token = get_access_token()
+        if not access_token:
+            return json.dumps({
+                "success": False,
+                "error": "No valid access token available. Please check authentication.",
+                "error_type": "authentication_error"
+            }, indent=2)
+        
+        # Validate required parameters
+        if not workspace_name or not workspace_name.strip():
+            return json.dumps({
+                "success": False,
+                "error": "Workspace name is required and cannot be empty.",
+                "error_type": "parameter_error"
+            }, indent=2)
+        
+        if not dataset_name or not dataset_name.strip():
+            return json.dumps({
+                "success": False,
+                "error": "Dataset name is required and cannot be empty.",
+                "error_type": "parameter_error"
+            }, indent=2)
+        
+        # Parse relationships JSON
+        try:
+            relationships_list = json.loads(relationships_info)
+        except json.JSONDecodeError as e:
+            return json.dumps({
+                "success": False,
+                "error": f"Invalid JSON in relationships_info: {str(e)}",
+                "error_type": "parameter_error"
+            }, indent=2)
+        
+        # Construct Power BI Service connection string WITHOUT catalog
+        # Let TOM select the database by name instead  
+        workspace_name_encoded = urllib.parse.quote(workspace_name)
+        server_connection_string = f"Data Source=powerbi://api.powerbi.com/v1.0/myorg/{workspace_name_encoded};Password={access_token};"
+        
+        # Use enhanced TOM function with fixed relationship logic
+        return tom_add_relationships_to_model(
+            connection_string=server_connection_string,
+            database_name=dataset_name,
+            relationships_info=relationships_list
+        )
+
+    # ============================================================================
+    # COMPREHENSIVE MODEL CREATION TOOLS USING TOM
+    # ============================================================================
+
+    @mcp_instance.tool()
+    def tom_create_empty_model(
+        connection_string: str,
+        database_name: str,
+        compatibility_level: int = 1604
+    ) -> str:
+        """
+        Create a new empty semantic model (database) using TOM.
+        
+        Args:
+            connection_string: Connection string for Analysis Services server (without catalog)
+            database_name: Name for the new database/semantic model
+            compatibility_level: Compatibility level for the model (default: 1604)
+            
+        Returns:
+            JSON string with operation results
+        """
+        return tom_create_empty_semantic_model(connection_string, database_name, compatibility_level)
+
+    @mcp_instance.tool()
+    def tom_add_lakehouse_expression(
+        connection_string: str,
+        database_name: str,
+        lakehouse_server: str,
+        lakehouse_endpoint_id: str
+    ) -> str:
+        """
+        Add DatabaseQuery expression for DirectLake connectivity to lakehouse.
+        This MUST be created before adding tables with DirectLake partitions.
+        
+        Args:
+            connection_string: TOM connection string for Power BI Service
+            database_name: Name of the semantic model/database
+            lakehouse_server: SQL Analytics Endpoint server name
+            lakehouse_endpoint_id: SQL Analytics Endpoint ID/database name
+        
+        Returns:
+            JSON string with operation results
+        """
+        from tools.tom_semantic_model_tools_python import tom_add_lakehouse_expression
+        return tom_add_lakehouse_expression(connection_string, database_name, lakehouse_server, lakehouse_endpoint_id)
+
+    @mcp_instance.tool()
+    def tom_add_lakehouse_data_source(
+        connection_string: str,
+        database_name: str,
+        server_name: str,
+        endpoint_id: str
+    ) -> str:
+        """
+        Add the data source expression for DirectLake connectivity to lakehouse.
+        
+        Args:
+            connection_string: Connection string for Analysis Services server
+            database_name: Name of the target database
+            server_name: SQL Analytics Endpoint server name
+            endpoint_id: SQL Analytics Endpoint ID
+            
+        Returns:
+            JSON string with operation results
+        """
+        return tom_add_data_source_expression(connection_string, database_name, server_name, endpoint_id)
+
+    @mcp_instance.tool()
+    def tom_add_table_with_lakehouse_partition(
+        connection_string: str,
+        database_name: str,
+        table_name: str,
+        columns_info: str,  # JSON string of column information
+        schema_name: str = "dbo"
+    ) -> str:
+        """
+        Add a complete table with columns and DirectLake partition using TOM.
+        
+        Args:
+            connection_string: Connection string for Analysis Services server
+            database_name: Name of the target database
+            table_name: Name of the table to create
+            columns_info: JSON string with list of column information dictionaries
+            schema_name: Schema name in the lakehouse (default: "dbo")
+            
+        Returns:
+            JSON string with operation results
+        """
+        import json
+        try:
+            columns_list = json.loads(columns_info)
+            return tom_add_table_with_columns_and_partition(
+                connection_string, database_name, table_name, columns_list, schema_name
+            )
+        except json.JSONDecodeError as e:
+            return json.dumps({
+                "success": False,
+                "error": f"Invalid JSON in columns_info: {str(e)}"
+            })
+
+    @mcp_instance.tool()
+    def tom_add_model_relationships(
+        connection_string: str,
+        database_name: str,
+        relationships_info: str  # JSON string of relationship information
+    ) -> str:
+        """
+        Add relationships between tables using TOM.
+        
+        Args:
+            connection_string: Connection string for Analysis Services server
+            database_name: Name of the target database
+            relationships_info: JSON string with list of relationship dictionaries
+            
+        Returns:
+            JSON string with operation results
+        """
+        import json
+        try:
+            relationships_list = json.loads(relationships_info)
+            return tom_add_relationships_to_model(connection_string, database_name, relationships_list)
+        except json.JSONDecodeError as e:
+            return json.dumps({
+                "success": False,
+                "error": f"Invalid JSON in relationships_info: {str(e)}"
+            })
+
+    @mcp_instance.tool()
+    def tom_discover_lakehouse_tables(
+        workspace_id: str,
+        lakehouse_id: str = None,
+        lakehouse_name: str = None
+    ) -> str:
+        """
+        Discover tables and their schema from a Fabric lakehouse using SQL Analytics Endpoint.
+        
+        Args:
+            workspace_id: The Fabric workspace ID
+            lakehouse_id: Optional lakehouse ID
+            lakehouse_name: Optional lakehouse name (alternative to lakehouse_id)
+            
+        Returns:
+            JSON string with table schema information
+        """
+        return tom_discover_lakehouse_schema(workspace_id, lakehouse_id, lakehouse_name)
+
+    @mcp_instance.tool()
+    def tom_create_model_from_lakehouse(
+        connection_string: str,
+        database_name: str,
+        workspace_id: str,
+        lakehouse_id: str = None,
+        lakehouse_name: str = None,
+        table_names: str = None,  # JSON string of table names
+        relationships: str = None  # JSON string of relationships
+    ) -> str:
+        """
+        Create a complete DirectLake semantic model from a Fabric lakehouse.
+        
+        This orchestrates the entire process:
+        1. Discover lakehouse schema
+        2. Create empty semantic model
+        3. Add data source expression
+        4. Add tables with columns and partitions
+        5. Add relationships (if provided)
+        
+        Args:
+            connection_string: Connection string for Analysis Services server
+            database_name: Name for the new semantic model
+            workspace_id: Fabric workspace ID containing the lakehouse
+            lakehouse_id: Optional lakehouse ID
+            lakehouse_name: Optional lakehouse name
+            table_names: Optional JSON string of specific tables to include
+            relationships: Optional JSON string of relationships to create
+            
+        Returns:
+            JSON string with complete operation results
+        """
+        import json
+        
+        try:
+            # Parse optional JSON parameters
+            table_names_list = None
+            if table_names:
+                table_names_list = json.loads(table_names)
+                
+            relationships_list = None
+            if relationships:
+                relationships_list = json.loads(relationships)
+            
+            return tom_create_complete_model_from_lakehouse(
+                connection_string, database_name, workspace_id, 
+                lakehouse_id, lakehouse_name, table_names_list, relationships_list
+            )
+        except json.JSONDecodeError as e:
+            return json.dumps({
+                "success": False,
+                "error": f"Invalid JSON in parameters: {str(e)}"
+            })
+
+    # ============================================================================
+    # MODEL REFRESH TOOLS FOR RELATIONSHIP RECALCULATION
+    # ============================================================================
+
+    @mcp_instance.tool()
+    def tom_refresh_semantic_model_tool(
+        connection_string: str,
+        database_name: str,
+        refresh_type: str = "calculate"
+    ) -> str:
+        """
+        Refresh a semantic model to recalculate relationships and update data.
+        
+        This is essential after creating relationships in DirectLake models to ensure
+        they are properly calculated and functional.
+        
+        Args:
+            connection_string: Connection string for Analysis Services (e.g., "Data Source=localhost:65304" for local Desktop)
+            database_name: Name of the database/semantic model to refresh
+            refresh_type: Type of refresh ("full", "automatic", "dataOnly", "calculate", "clearValues")
+            
+        Returns:
+            JSON string with refresh operation results
+        """
+        return tom_refresh_semantic_model(connection_string, database_name, refresh_type)
+
+    @mcp_instance.tool()
+    def tom_refresh_powerbi_service_model(
+        workspace_name: str,
+        dataset_name: str,
+        refresh_type: str = "calculate"
+    ) -> str:
+        """
+        Refresh a Power BI Service semantic model with automatic authentication.
+        
+        This function automatically handles Power BI Service authentication and is
+        essential after creating relationships to ensure they are properly calculated.
+        
+        Args:
+            workspace_name: The Power BI workspace name
+            dataset_name: The dataset/model name to refresh
+            refresh_type: Type of refresh ("calculate", "full", "automatic", "dataOnly", "clearValues")
+            
+        Returns:
+            JSON string with refresh operation results
+        """
+        import urllib.parse
+        import json
+        
+        # Get access token for Power BI Service authentication
+        access_token = get_access_token()
+        if not access_token:
+            return json.dumps({
+                "success": False,
+                "error": "No valid access token available. Please check authentication.",
+                "error_type": "authentication_error"
+            }, indent=2)
+        
+        # Validate required parameters
+        if not workspace_name or not workspace_name.strip():
+            return json.dumps({
+                "success": False,
+                "error": "Workspace name is required and cannot be empty.",
+                "error_type": "parameter_error"
+            }, indent=2)
+        
+        if not dataset_name or not dataset_name.strip():
+            return json.dumps({
+                "success": False,
+                "error": "Dataset name is required and cannot be empty.",
+                "error_type": "parameter_error"
+            }, indent=2)
+        
+        # Construct Power BI Service connection string
+        workspace_name_encoded = urllib.parse.quote(workspace_name)
+        server_connection_string = f"Data Source=powerbi://api.powerbi.com/v1.0/myorg/{workspace_name_encoded};Password={access_token};"
+        
+        # Use the core refresh function
+        return tom_refresh_semantic_model(server_connection_string, dataset_name, refresh_type)
+
 def main():
     """Main entry point for the Semantic Model MCP Server."""
 
@@ -1513,6 +2519,7 @@ def main():
     register_powerbi_desktop_tools(mcp)
     register_microsoft_learn_tools(mcp)
     register_chart_tools(mcp)  # Legacy Vega-Lite charts
+    register_tom_tools(mcp)  # NEW: TOM-based semantic model tools
     
     # Register new Dash dashboard tools
     try:

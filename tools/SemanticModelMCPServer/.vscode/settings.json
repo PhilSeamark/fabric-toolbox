@@ -1,5 +1,10 @@
 {
     "python.analysis.extraPaths": ["./", "../core"],
-    "chat.tools.autoApprove":true ,
-    "chat.agent.maxRequests": 100
+    "chat.tools.autoApprove": true,
+    "chat.agent.maxRequests": 100,
+    "terminal.integrated.allowChords": false,
+    "terminal.integrated.confirmOnExit": "never",
+    "terminal.integrated.automationProfile.windows": {
+        "path": "powershell.exe"
+    }
 }

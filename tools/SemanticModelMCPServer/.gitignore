@@ -2,6 +2,7 @@
 
 # Output folder - Generated dashboards and temporary files
 output/
+testing/
 
 # Python cache and compiled files
 __pycache__/
