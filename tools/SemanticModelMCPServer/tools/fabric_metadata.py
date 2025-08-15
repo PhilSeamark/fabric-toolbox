@@ -192,18 +192,8 @@ def list_delta_tables(workspace_id: str, lakehouse_id: str = None) -> str:
         # Construct API endpoint URL for listing tables in the lakehouse
         tables_url = f"https://api.fabric.microsoft.com/v1/workspaces/{workspace_id.strip()}/lakehouses/{lakehouse_id.strip()}/tables"
         
-        # Add timestamp to force fresh API call and avoid caching
-        import time
-        timestamp = str(int(time.time()))
-        print(f"DEBUG: Making API call at {timestamp} to {tables_url}")
-        
         # Make the API request with 30-second timeout to prevent hanging
         response = requests.get(tables_url, headers=headers, timeout=30)
-        
-        # Debug information
-        print(f"DEBUG: Response status code: {response.status_code}")
-        print(f"DEBUG: Response headers: {dict(response.headers)}")
-        print(f"DEBUG: Raw response text: {response.text[:500]}...")
         
         # Handle different HTTP status codes with specific error messages
         if response.status_code == 200:
@@ -211,7 +201,7 @@ def list_delta_tables(workspace_id: str, lakehouse_id: str = None) -> str:
             response_json = response.json()
             tables = response_json.get("data", response_json.get("value", []))
             if not tables:
-                # Return detailed debug information when no tables found
+                # Return detailed information when no tables found
                 return f"No tables found in this lakehouse. API Response: {json.dumps(response.json(), indent=2)}"
             
             # Filter for Delta Tables only (if type information is available)
@@ -235,23 +225,16 @@ def list_delta_tables(workspace_id: str, lakehouse_id: str = None) -> str:
             
         elif response.status_code == 400:
             # Handle the specific case of schema-enabled lakehouses
-            print(f"DEBUG: Got 400 error, checking for schema-enabled lakehouse error")
-            print(f"DEBUG: Response text: {response.text}")
             try:
                 response_json = response.json()
-                print(f"DEBUG: Parsed JSON: {response_json}")
                 error_code = response_json.get("errorCode", "")
-                print(f"DEBUG: Error code: {error_code}")
                 
                 if error_code == "UnsupportedOperationForSchemasEnabledLakehouse":
                     # Fall back to using SQL Analytics Endpoint for schema-enabled lakehouses
-                    print(f"DEBUG: Lakehouse has schemas enabled, falling back to SQL Analytics Endpoint")
                     return _list_delta_tables_via_sql_endpoint(workspace_id, lakehouse_id)
                 else:
-                    print(f"DEBUG: Different 400 error: {error_code}")
                     return f"Error: HTTP 400 - {response.text}"
             except Exception as e:
-                print(f"DEBUG: Error parsing JSON response: {e}")
                 # If we can't parse the JSON, just return the raw error
                 return f"Error: HTTP 400 - {response.text}"
                 
@@ -337,11 +320,16 @@ def _list_delta_tables_via_sql_endpoint(workspace_id: str, lakehouse_id: str) ->
         except ImportError:
             return "Error: pyodbc module is required for SQL Analytics Endpoint queries but is not installed"
         
-        # Get access token for Azure SQL connection - use same token manager as the main function
-        from core.azure_token_manager import get_cached_azure_token
-        token_struct, success, error = get_cached_azure_token("https://database.windows.net/.default")
-        if not success:
-            return f"Error: Authentication failed: {error}"
+        # Use the same authentication token as all other Power BI functions
+        # This eliminates the need for separate authentication and works with lakehouse SQL endpoints
+        import struct
+        access_token = get_access_token()
+        if not access_token:
+            return "Error: Authentication failed: Could not obtain access token"
+        
+        # Convert token to SQL Server authentication format
+        token_bytes = access_token.encode("UTF-16-LE")
+        token_struct = struct.pack(f'<I{len(token_bytes)}s', len(token_bytes), token_bytes)
         
         # Try different ODBC drivers in order of preference
         available_drivers = [

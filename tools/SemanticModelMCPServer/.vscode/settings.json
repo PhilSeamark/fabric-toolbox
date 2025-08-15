@@ -4,6 +4,8 @@
     "chat.agent.maxRequests": 100,
     "terminal.integrated.allowChords": false,
     "terminal.integrated.confirmOnExit": "never",
+    "terminal.integrated.confirmOnKill": "never",
+    "terminal.integrated.enablePersistentSessions": false,
     "terminal.integrated.automationProfile.windows": {
         "path": "powershell.exe"
     }

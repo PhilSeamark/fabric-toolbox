@@ -29,7 +29,6 @@ Co-pilot in VS Code has far fewer limitations than some MCP Clients and can also
 - **Workspace Navigation**: Get workspace IDs and navigate between different environments
 - **🆕 Interactive Dash Dashboards**: Professional web-based dashboards with real-time interactivity, data filtering, and enterprise-grade visualization
 - **🆕 Chart Generation & Visualization**: Create interactive charts, line graphs, bar charts, scatter plots, and comprehensive dashboards from DAX query results
-- **🆕 Weight Tracking Dashboard**: Specialized dashboard for fitness and health data tracking with trend analysis and progress monitoring
 - **🆕 Business Intelligence Platform**: Transform from simple chart generation to full BI dashboard capabilities with Plotly and Dash integration
 - **🆕 Best Practice Analyzer (BPA)**: Comprehensive analysis of semantic models against industry best practices and Microsoft recommendations
 - **🆕 Power BI Desktop Detection**: Automatically detect and connect to local Power BI Desktop instances for development and testing

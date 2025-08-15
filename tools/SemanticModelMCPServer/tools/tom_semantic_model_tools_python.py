@@ -40,6 +40,8 @@ try:
     
     # Import .NET namespaces
     from Microsoft.AnalysisServices.Tabular import Server, Database, Model, Table, Measure, Column  # type: ignore
+    from Microsoft.AnalysisServices.Tabular import ModeType, ExpressionKind, Partition, NamedExpression  # type: ignore
+    from Microsoft.AnalysisServices.Tabular import EntityPartitionSource, StructuredDataSource  # type: ignore
     from Microsoft.AnalysisServices import ConnectionException  # type: ignore
     from System import Exception as DotNetException  # type: ignore
     
@@ -1580,6 +1582,188 @@ def tom_create_empty_semantic_model(connection_string: str, database_name: str,
             "database_name": database_name
         })
 
+def tom_create_empty_semantic_model_with_auth(workspace_name: str, database_name: str, 
+                                             compatibility_level: int = 1604) -> str:
+    """
+    Create a new empty semantic model (database) using TOM with automatic Power BI Service authentication.
+    
+    Args:
+        workspace_name: The Power BI workspace name
+        database_name: Name for the new database/semantic model
+        compatibility_level: Compatibility level for the model (default: 1604)
+        
+    Returns:
+        JSON string with operation results
+    """
+    if not TOM_AVAILABLE:
+        return json.dumps({"success": False, "error": "TOM libraries not available"})
+    
+    try:
+        from core.auth import get_access_token
+        import urllib.parse
+        from Microsoft.AnalysisServices.Tabular import Database, Model  # type: ignore
+        
+        # Get access token automatically
+        access_token = get_access_token()
+        workspace_name_encoded = urllib.parse.quote(workspace_name)
+        connection_string = f"Data Source=powerbi://api.powerbi.com/v1.0/myorg/{workspace_name_encoded};Password={access_token};"
+        
+        server = Server()
+        server.Connect(connection_string)
+        
+        # Check if database already exists
+        try:
+            existing_db = server.Databases.GetByName(database_name)
+            return json.dumps({
+                "success": False,
+                "error": f"Database '{database_name}' already exists",
+                "database_name": database_name,
+                "workspace_name": workspace_name
+            })
+        except:
+            # Database doesn't exist, which is what we want
+            pass
+        
+        # Create new database
+        database = Database()
+        database.Name = database_name
+        database.ID = database_name
+        
+        # Set compatibility level directly as integer - TOM will handle conversion
+        database.CompatibilityLevel = compatibility_level
+        
+        # Create the model
+        model = Model()
+        model.Name = database_name
+        database.Model = model
+        
+        # Add basic model properties for DirectLake
+        model.Culture = "en-US"
+        model.Collation = "Latin1_General_100_BIN2_UTF8"
+        model.SourceQueryCulture = "en-US"
+        
+        # Add to server
+        server.Databases.Add(database)
+        database.Update()
+        
+        logger.info(f"Successfully created empty semantic model: {database_name}")
+        
+        return json.dumps({
+            "success": True,
+            "database_name": database_name,
+            "workspace_name": workspace_name,
+            "compatibility_level": compatibility_level,
+            "message": f"Empty semantic model '{database_name}' created successfully"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error creating empty semantic model: {e}")
+        return json.dumps({
+            "success": False,
+            "error": str(e),
+            "database_name": database_name,
+            "workspace_name": workspace_name
+        })
+    finally:
+        try:
+            server.Disconnect()
+        except:
+            pass
+
+def tom_add_lakehouse_expression_with_auth(workspace_name: str, database_name: str, 
+                                          lakehouse_server: str, lakehouse_endpoint_id: str) -> str:
+    """
+    Add DatabaseQuery expression for DirectLake connectivity to lakehouse with automatic authentication.
+    This MUST be created before adding tables with DirectLake partitions.
+    
+    Args:
+        workspace_name: The Power BI workspace name
+        database_name: Name of the semantic model/database
+        lakehouse_server: SQL Analytics Endpoint server name (e.g., "abc.datawarehouse.fabric.microsoft.com")
+        lakehouse_endpoint_id: SQL Analytics Endpoint ID/database name
+    
+    Returns:
+        JSON string with operation results
+    """
+    if not TOM_AVAILABLE:
+        return json.dumps({"success": False, "error": "TOM libraries not available"})
+    
+    try:
+        from core.auth import get_access_token
+        import urllib.parse
+        from Microsoft.AnalysisServices.Tabular import NamedExpression, ExpressionKind  # type: ignore
+        
+        # Get access token automatically
+        access_token = get_access_token()
+        workspace_name_encoded = urllib.parse.quote(workspace_name)
+        connection_string = f"Data Source=powerbi://api.powerbi.com/v1.0/myorg/{workspace_name_encoded};Password={access_token};"
+        
+        # Connect to server
+        server = Server()
+        server.Connect(connection_string)
+        
+        # Get database by name
+        database = server.Databases.GetByName(database_name)
+        if database is None:
+            return json.dumps({
+                "success": False,
+                "error": f"Database '{database_name}' not found"
+            })
+        
+        # Create the DatabaseQuery expression for DirectLake
+        expression = NamedExpression()
+        expression.Name = "DatabaseQuery"
+        
+        # FIX: Use direct enum value assignment for Python.NET 3.0 compatibility
+        expression.Kind = ExpressionKind.M
+        
+        # Build M expression for lakehouse connection (following DirectLake pattern)
+        m_expression = [
+            "let",
+            f'    database = Sql.Database("{lakehouse_server}", "{lakehouse_endpoint_id}")',
+            "in",
+            "    database"
+        ]
+        
+        # Set expression content
+        expression.Expression = "\n".join(m_expression)
+        
+        # Add lineage tag for tracking
+        expression.LineageTag = "DatabaseQuery_expression"
+        
+        # Add expression to model
+        database.Model.Expressions.Add(expression)
+        
+        # Save model changes
+        database.Model.SaveChanges()
+        
+        logger.info(f"Successfully added lakehouse expression to model: {database_name}")
+        
+        return json.dumps({
+            "success": True,
+            "message": f"DatabaseQuery expression added successfully to model '{database_name}'",
+            "expression_name": "DatabaseQuery",
+            "expression_type": "M",
+            "lakehouse_server": lakehouse_server,
+            "lakehouse_endpoint": lakehouse_endpoint_id,
+            "expression_content": expression.Expression,
+            "workspace_name": workspace_name
+        })
+        
+    except Exception as e:
+        logger.error(f"Error adding lakehouse expression: {e}")
+        return json.dumps({
+            "success": False,
+            "error": str(e),
+            "database_name": database_name,
+            "workspace_name": workspace_name
+        })
+    finally:
+        try:
+            server.Disconnect()
+        except:
+            pass
+
 def tom_add_data_source_expression(connection_string: str, database_name: str,
                                   server_name: str, endpoint_id: str) -> str:
     """
@@ -1675,8 +1859,6 @@ def tom_add_lakehouse_data_source(connection_string: str, database_name: str,
         return json.dumps({"success": False, "error": "TOM libraries not available"})
     
     try:
-        from Microsoft.AnalysisServices.Tabular import StructuredDataSource  # type: ignore
-        
         manager = TOMSemanticModelManager()
         result = manager.connect(connection_string, database_name)
         
@@ -1732,9 +1914,6 @@ def tom_add_lakehouse_expression(connection_string, database_name, lakehouse_ser
     import json
     
     try:
-        # Import required TOM classes
-        from Microsoft.AnalysisServices.Tabular import Server, NamedExpression  # type: ignore 
-        
         # Connect to server
         server = Server()
         server.Connect(connection_string)
@@ -1751,10 +1930,8 @@ def tom_add_lakehouse_expression(connection_string, database_name, lakehouse_ser
         expression = NamedExpression()
         expression.Name = "DatabaseQuery"
         
-        # FIX: Use proper enum for Kind - M expressions use ExpressionKind.M
-        from Microsoft.AnalysisServices.Tabular import ExpressionKind  # type: ignore
-        from System import Enum  # type: ignore
-        expression.Kind = Enum.Parse(ExpressionKind, "M")  # Use text-based enum parsing
+        # FIX: Use direct enum value assignment for Python.NET 3.0 compatibility
+        expression.Kind = ExpressionKind.M
         
         # Build M expression for lakehouse connection (following DirectLake pattern)
         m_expression = [
@@ -1902,11 +2079,9 @@ def tom_add_table_with_columns_and_partition(connection_string: str, database_na
         partition = Partition()
         partition.Name = f"{table_name}_partition"
         # Handle Python.NET 3.0 enum conversion for Mode
-        from Microsoft.AnalysisServices.Tabular import ModeType  # type: ignore
         partition.Mode = ModeType.DirectLake
         
         # Create the partition source using EntityPartitionSource for DirectLake
-        from Microsoft.AnalysisServices.Tabular import EntityPartitionSource  # type: ignore
         source = EntityPartitionSource()
         source.SchemaName = schema_name
         source.EntityName = table_name
@@ -1943,6 +2118,157 @@ def tom_add_table_with_columns_and_partition(connection_string: str, database_na
             "database_name": database_name,
             "table_name": table_name
         })
+
+def tom_add_table_with_lakehouse_partition_with_auth(workspace_name: str, database_name: str,
+                                                    table_name: str, columns_info: List[Dict],
+                                                    schema_name: str = "dbo") -> str:
+    """
+    Add a complete table with columns and DirectLake partition using TOM with automatic authentication.
+    
+    Args:
+        workspace_name: The Power BI workspace name
+        database_name: Name of the target database
+        table_name: Name of the table to create
+        columns_info: List of dictionaries with column information
+        schema_name: Schema name in the lakehouse (default: "dbo")
+        
+    Returns:
+        JSON string with operation results
+    """
+    if not TOM_AVAILABLE:
+        return json.dumps({"success": False, "error": "TOM libraries not available"})
+    
+    try:
+        from core.auth import get_access_token
+        import urllib.parse
+        from Microsoft.AnalysisServices.Tabular import Table, DataColumn, Partition, PartitionSourceType  # type: ignore
+        from Microsoft.AnalysisServices.Tabular import EntityPartitionSource, ModeType, DataType, AggregateFunction  # type: ignore
+        
+        # Get access token automatically
+        access_token = get_access_token()
+        workspace_name_encoded = urllib.parse.quote(workspace_name)
+        connection_string = f"Data Source=powerbi://api.powerbi.com/v1.0/myorg/{workspace_name_encoded};Password={access_token};"
+        
+        manager = TOMSemanticModelManager()
+        result = manager.connect(connection_string, database_name)
+        
+        if not result["success"]:
+            return json.dumps(result)
+        
+        # Create new table
+        table = Table()
+        table.Name = table_name
+        table.LineageTag = f"{table_name}_table"
+        table.SourceLineageTag = f"[{schema_name}].[{table_name}]"
+        
+        # Add columns to the table
+        columns_added = []
+        for col_info in columns_info:
+            column = DataColumn()
+            column.Name = col_info["name"]
+            column.SourceColumn = col_info.get("sourceColumn", col_info["name"])
+            column.LineageTag = f"{table_name}_{col_info['name']}"
+            column.SourceLineageTag = col_info["name"]
+            
+            # Map data types
+            data_type = col_info.get("dataType", "String")
+            if data_type == "String":
+                column.DataType = DataType.String
+                column.SourceProviderType = "varchar(8000)"
+            elif data_type == "Int64":
+                column.DataType = DataType.Int64
+                column.SourceProviderType = "int"
+            elif data_type == "Decimal":
+                column.DataType = DataType.Decimal
+                column.SourceProviderType = "decimal(18,2)"
+            elif data_type == "Double":
+                column.DataType = DataType.Double
+                column.SourceProviderType = "float"
+            elif data_type == "DateTime":
+                column.DataType = DataType.DateTime
+                column.SourceProviderType = "datetime2"
+            elif data_type == "Boolean":
+                column.DataType = DataType.Boolean
+                column.SourceProviderType = "bit"
+            else:
+                column.DataType = DataType.String  # Default fallback
+                column.SourceProviderType = "varchar(8000)"
+            
+            # Set SummarizeBy if specified (important for numeric columns like SalesAmount)
+            summarize_by = col_info.get("summarizeBy", "Default")
+            if summarize_by == "Sum":
+                column.SummarizeBy = AggregateFunction.Sum
+            elif summarize_by == "Count":
+                column.SummarizeBy = AggregateFunction.Count
+            elif summarize_by == "Average":
+                column.SummarizeBy = AggregateFunction.Average
+            elif summarize_by == "None":
+                column.SummarizeBy = AggregateFunction.None_
+            else:
+                column.SummarizeBy = AggregateFunction.Default
+            
+            table.Columns.Add(column)
+            columns_added.append({
+                "name": column.Name,
+                "dataType": data_type,
+                "sourceColumn": column.SourceColumn,
+                "summarizeBy": summarize_by
+            })
+        
+        # Create DirectLake partition
+        partition = Partition()
+        partition.Name = f"{table_name}_partition"
+        # Handle Python.NET 3.0 enum conversion for Mode
+        partition.Mode = ModeType.DirectLake
+        
+        # Create the partition source using EntityPartitionSource for DirectLake
+        source = EntityPartitionSource()
+        source.SchemaName = schema_name
+        source.EntityName = table_name
+        # FIX: Get reference to DatabaseQuery expression object, not string
+        database_query_expression = manager.model.Expressions.Find("DatabaseQuery")
+        if database_query_expression is None:
+            return json.dumps({
+                "success": False,
+                "error": "DatabaseQuery expression not found. You must create it first using tom_add_lakehouse_expression_with_auth()"
+            })
+        source.ExpressionSource = database_query_expression  # Reference to actual expression object
+        
+        partition.Source = source
+        table.Partitions.Add(partition)
+        
+        # Add table to model
+        manager.model.Tables.Add(table)
+        manager.model.SaveChanges()
+        
+        logger.info(f"Successfully added table '{table_name}' with {len(columns_added)} columns")
+        
+        return json.dumps({
+            "success": True,
+            "database_name": database_name,
+            "table_name": table_name,
+            "columns_added": columns_added,
+            "partition_name": partition.Name,
+            "schema_name": schema_name,
+            "workspace_name": workspace_name,
+            "message": f"Table '{table_name}' added successfully with DirectLake partition"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error adding table with columns and partition: {e}")
+        return json.dumps({
+            "success": False,
+            "error": str(e),
+            "database_name": database_name,
+            "table_name": table_name,
+            "workspace_name": workspace_name
+        })
+    finally:
+        try:
+            if 'manager' in locals():
+                manager.disconnect()
+        except:
+            pass
 
 def tom_add_relationships_to_model(connection_string: str, database_name: str,
                                  relationships_info: List[Dict]) -> str:

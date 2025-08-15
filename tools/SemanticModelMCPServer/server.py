@@ -6,7 +6,6 @@ import json
 import sys
 from typing import List, Optional
 from core.auth import get_access_token
-from core.azure_token_manager import get_cached_azure_token, clear_token_cache
 from core.bpa_service import BPAService
 from tools.fabric_metadata import list_workspaces, list_datasets, get_workspace_id, list_notebooks, list_delta_tables, list_lakehouses, list_lakehouse_files, get_lakehouse_sql_connection_string as fabric_get_lakehouse_sql_connection_string
 from tools.bpa_tools import register_bpa_tools
@@ -841,34 +840,50 @@ def get_lakehouse_sql_connection_string(workspace_id: str, lakehouse_id: str = N
 
 @mcp.tool
 def clear_azure_token_cache() -> str:
-    """Clears the Azure authentication token cache. 
+    """Clears the authentication token cache. 
     Useful for debugging authentication issues or forcing token refresh.
+    
+    Note: Now uses unified Power BI token authentication for all services.
     """
-    from core.azure_token_manager import clear_token_cache, get_token_cache_status
+    from core.auth import clear_token_cache
     
-    # Get status before clearing
-    status_before = get_token_cache_status()
-    
-    # Clear the cache
-    clear_token_cache()
-    
-    # Get status after clearing
-    status_after = get_token_cache_status()
-    
-    return f"Azure token cache cleared successfully. Had {len(status_before)} cached tokens, now has {len(status_after)} cached tokens."
+    try:
+        # Clear the unified token cache
+        clear_token_cache()
+        return "Authentication token cache cleared successfully. All cached tokens have been removed."
+    except Exception as e:
+        return f"Failed to clear token cache: {str(e)}"
 
 @mcp.tool
 def get_azure_token_status() -> str:
-    """Gets the current status of the Azure token cache.
-    Shows which tokens are cached, their expiration times, and validity status.
+    """Gets the current status of the authentication token cache.
+    Shows token validity status for the unified Power BI authentication.
+    
+    Note: Now uses unified Power BI token authentication for all services.
     """
-    from core.azure_token_manager import get_token_cache_status
+    from core.auth import _access_token, _token_expiry
     import json
+    import time
+    from datetime import datetime
     
-    status = get_token_cache_status()
+    if not _access_token or not _token_expiry:
+        return json.dumps({
+            "status": "No token cached",
+            "message": "No authentication token is currently cached"
+        }, indent=2)
     
-    if not status:
-        return "No Azure tokens currently cached."
+    current_time = time.time()
+    is_valid = current_time < _token_expiry
+    time_until_expiry = _token_expiry - current_time if is_valid else 0
+    
+    status = {
+        "status": "Token cached",
+        "is_valid": is_valid,
+        "expires_at": datetime.fromtimestamp(_token_expiry).isoformat() if _token_expiry else None,
+        "time_until_expiry_seconds": max(0, time_until_expiry),
+        "authentication_scope": "Power BI API (unified for all services)",
+        "note": "Single token now used for both Power BI API and lakehouse SQL endpoints"
+    }
     
     return json.dumps(status, indent=2)
 
@@ -1044,14 +1059,20 @@ def _internal_query_lakehouse_sql_endpoint(workspace_id: str, sql_query: str, la
     - "SHOW TABLES"
     """
     import json
+    import struct
 
-    # Get cached or fresh authentication token
-    token_struct, success, error = get_cached_azure_token("https://database.windows.net/.default")
-    if not success:
+    # Use the same authentication token as all other Power BI functions
+    # This eliminates the need for separate authentication and works with lakehouse SQL endpoints
+    access_token = get_access_token()
+    if not access_token:
         return json.dumps({
             "success": False,
-            "error": f"Authentication failed: {error}"
+            "error": "Authentication failed: Could not obtain access token"
         }, indent=2)
+    
+    # Convert token to SQL Server authentication format
+    token_bytes = access_token.encode("UTF-16-LE")
+    token_struct = struct.pack(f'<I{len(token_bytes)}s', len(token_bytes), token_bytes)
 
     # Check if pyodbc is available
     if pyodbc is None:
@@ -1657,9 +1678,10 @@ def register_tom_tools(mcp_instance):
         tom_list_tables_by_database_name,
         tom_add_measure_by_database_name,
         # NEW: Complete model creation functions
-        tom_create_empty_semantic_model,
+        tom_create_empty_semantic_model_with_auth,
+        tom_add_lakehouse_expression_with_auth,
+        tom_add_table_with_lakehouse_partition_with_auth,
         tom_add_data_source_expression,
-        tom_add_table_with_columns_and_partition,
         tom_add_relationships_to_model,
         tom_discover_lakehouse_schema,
         tom_create_complete_model_from_lakehouse,
@@ -2235,38 +2257,42 @@ def register_tom_tools(mcp_instance):
     # COMPREHENSIVE MODEL CREATION TOOLS USING TOM
     # ============================================================================
 
+
+
     @mcp_instance.tool()
-    def tom_create_empty_model(
-        connection_string: str,
+    def tom_create_empty_model_with_auth(
+        workspace_name: str,
         database_name: str,
         compatibility_level: int = 1604
     ) -> str:
         """
-        Create a new empty semantic model (database) using TOM.
+        Create a new empty semantic model (database) using TOM with automatic Power BI Service authentication.
         
         Args:
-            connection_string: Connection string for Analysis Services server (without catalog)
+            workspace_name: The Power BI workspace name
             database_name: Name for the new database/semantic model
             compatibility_level: Compatibility level for the model (default: 1604)
             
         Returns:
             JSON string with operation results
         """
-        return tom_create_empty_semantic_model(connection_string, database_name, compatibility_level)
+        return tom_create_empty_semantic_model_with_auth(workspace_name, database_name, compatibility_level)
+
+
 
     @mcp_instance.tool()
-    def tom_add_lakehouse_expression(
-        connection_string: str,
+    def tom_add_lakehouse_expression_with_auth(
+        workspace_name: str,
         database_name: str,
         lakehouse_server: str,
         lakehouse_endpoint_id: str
     ) -> str:
         """
-        Add DatabaseQuery expression for DirectLake connectivity to lakehouse.
+        Add DatabaseQuery expression for DirectLake connectivity to lakehouse with automatic authentication.
         This MUST be created before adding tables with DirectLake partitions.
         
         Args:
-            connection_string: TOM connection string for Power BI Service
+            workspace_name: The Power BI workspace name
             database_name: Name of the semantic model/database
             lakehouse_server: SQL Analytics Endpoint server name
             lakehouse_endpoint_id: SQL Analytics Endpoint ID/database name
@@ -2274,8 +2300,34 @@ def register_tom_tools(mcp_instance):
         Returns:
             JSON string with operation results
         """
-        from tools.tom_semantic_model_tools_python import tom_add_lakehouse_expression
-        return tom_add_lakehouse_expression(connection_string, database_name, lakehouse_server, lakehouse_endpoint_id)
+        from tools.tom_semantic_model_tools_python import tom_add_lakehouse_expression_with_auth
+        return tom_add_lakehouse_expression_with_auth(workspace_name, database_name, lakehouse_server, lakehouse_endpoint_id)
+
+    @mcp_instance.tool()
+    def tom_add_table_with_lakehouse_partition_with_auth(
+        workspace_name: str,
+        database_name: str,
+        table_name: str,
+        columns_info: str,
+        schema_name: str = "dbo"
+    ) -> str:
+        """
+        Add a complete table with columns and DirectLake partition using TOM with automatic authentication.
+        
+        Args:
+            workspace_name: The Power BI workspace name
+            database_name: Name of the target database
+            table_name: Name of the table to create
+            columns_info: JSON string with list of column information dictionaries
+            schema_name: Schema name in the lakehouse (default: "dbo")
+            
+        Returns:
+            JSON string with operation results
+        """
+        import json
+        from tools.tom_semantic_model_tools_python import tom_add_table_with_lakehouse_partition_with_auth
+        columns_list = json.loads(columns_info)
+        return tom_add_table_with_lakehouse_partition_with_auth(workspace_name, database_name, table_name, columns_list, schema_name)
 
     @mcp_instance.tool()
     def tom_add_lakehouse_data_source(
@@ -2298,38 +2350,7 @@ def register_tom_tools(mcp_instance):
         """
         return tom_add_data_source_expression(connection_string, database_name, server_name, endpoint_id)
 
-    @mcp_instance.tool()
-    def tom_add_table_with_lakehouse_partition(
-        connection_string: str,
-        database_name: str,
-        table_name: str,
-        columns_info: str,  # JSON string of column information
-        schema_name: str = "dbo"
-    ) -> str:
-        """
-        Add a complete table with columns and DirectLake partition using TOM.
-        
-        Args:
-            connection_string: Connection string for Analysis Services server
-            database_name: Name of the target database
-            table_name: Name of the table to create
-            columns_info: JSON string with list of column information dictionaries
-            schema_name: Schema name in the lakehouse (default: "dbo")
-            
-        Returns:
-            JSON string with operation results
-        """
-        import json
-        try:
-            columns_list = json.loads(columns_info)
-            return tom_add_table_with_columns_and_partition(
-                connection_string, database_name, table_name, columns_list, schema_name
-            )
-        except json.JSONDecodeError as e:
-            return json.dumps({
-                "success": False,
-                "error": f"Invalid JSON in columns_info: {str(e)}"
-            })
+
 
     @mcp_instance.tool()
     def tom_add_model_relationships(
