@@ -83,7 +83,7 @@ mcp = FastMCP(
     
     **Available BPA Tools:**
     - `analyze_model_bpa` - Analyze a deployed model by workspace/dataset name
-    - `analyze_tmsl_bpa` - Analyze TMSL definition directly (with automatic JSON formatting)
+    - `analyze_tmsl_bpa` - Analyze TMSL definition directly (with enhanced JSON formatting and tidying)
     - `generate_bpa_report` - Generate comprehensive BPA reports
     - `get_bpa_violations_by_severity` - Filter violations by severity (INFO/WARNING/ERROR)
     - `get_bpa_violations_by_category` - Filter violations by category
@@ -1666,6 +1666,7 @@ def register_tom_tools(mcp_instance):
         tom_list_model_tables, 
         tom_add_measure_to_model,
         tom_update_measure_in_model,
+        tom_delete_measure_from_model,
         tom_get_measure_info,
         tom_add_table_to_model,
         tom_update_table_in_model,
@@ -1697,7 +1698,8 @@ def register_tom_tools(mcp_instance):
         measure_name: str,
         expression: str,
         format_string: Optional[str] = None,
-        description: Optional[str] = None
+        description: Optional[str] = None,
+        display_folder: Optional[str] = None
     ) -> str:
         """
         Add a measure to a semantic model using the Tabular Object Model (TOM).
@@ -1717,6 +1719,7 @@ def register_tom_tools(mcp_instance):
             expression: DAX expression for the measure (e.g., "SUM(Sales[Amount])")
             format_string: Optional format string (e.g., "$#,##0.00", "0.00%")
             description: Optional description for the measure
+            display_folder: Optional display folder for organizing measures (e.g., "📊 Sales Metrics")
             
         Returns:
             JSON string with operation results, including success status and measure details
@@ -1727,7 +1730,8 @@ def register_tom_tools(mcp_instance):
             measure_name=measure_name,
             expression=expression,
             format_string=format_string,
-            description=description
+            description=description,
+            display_folder=display_folder
         )
     
     @mcp_instance.tool()
@@ -1792,7 +1796,8 @@ def register_tom_tools(mcp_instance):
         measure_name: str,
         expression: Optional[str] = None,
         format_string: Optional[str] = None,
-        description: Optional[str] = None
+        description: Optional[str] = None,
+        display_folder: Optional[str] = None
     ) -> str:
         """
         Update an existing measure in a semantic model using the Tabular Object Model (TOM).
@@ -1802,6 +1807,7 @@ def register_tom_tools(mcp_instance):
         - DAX expression
         - Format string (e.g., "$#,##0.00", "0.00%")
         - Description
+        - Display folder
         
         Only the properties you specify will be updated; others remain unchanged.
         
@@ -1812,6 +1818,7 @@ def register_tom_tools(mcp_instance):
             expression: Optional new DAX expression for the measure
             format_string: Optional new format string for the measure
             description: Optional new description for the measure
+            display_folder: Optional new display folder for the measure
             
         Returns:
             JSON string with operation results, including what changes were made
@@ -1822,7 +1829,34 @@ def register_tom_tools(mcp_instance):
             measure_name=measure_name,
             expression=expression,
             format_string=format_string,
-            description=description
+            description=description,
+            display_folder=display_folder
+        )
+
+    @mcp_instance.tool()
+    def tom_delete_measure_from_semantic_model(
+        connection_string: str,
+        table_name: str,
+        measure_name: str
+    ) -> str:
+        """
+        Delete a measure from a semantic model using the Tabular Object Model (TOM).
+        
+        This tool permanently removes a measure from the specified table. 
+        Use with caution as this action cannot be undone.
+        
+        Args:
+            connection_string: Connection string for Analysis Services (e.g., "Data Source=localhost:65304" for local Desktop)
+            table_name: Name of the table containing the measure
+            measure_name: Name of the measure to delete
+            
+        Returns:
+            JSON string with operation results, including details of the deleted measure
+        """
+        return tom_delete_measure_from_model(
+            connection_string=connection_string,
+            table_name=table_name,
+            measure_name=measure_name
         )
 
     # ===== TABLE MANAGEMENT TOOLS =====
@@ -2083,7 +2117,8 @@ def register_tom_tools(mcp_instance):
         measure_name: str,
         expression: str,
         format_string: Optional[str] = None,
-        description: Optional[str] = None
+        description: Optional[str] = None,
+        display_folder: Optional[str] = None
     ) -> str:
         """
         Add a measure to a Power BI Service semantic model using TOM with automatic authentication.
@@ -2099,6 +2134,7 @@ def register_tom_tools(mcp_instance):
             expression: DAX expression for the measure (e.g., "SUM(Sales[Amount])")
             format_string: Optional format string (e.g., "$#,##0.00", "0.00%")
             description: Optional description for the measure
+            display_folder: Optional display folder for organizing measures (e.g., "📊 Sales Metrics")
             
         Returns:
             JSON string with operation results, including success status and measure details
@@ -2142,7 +2178,8 @@ def register_tom_tools(mcp_instance):
             measure_name=measure_name,
             expression=expression,
             format_string=format_string,
-            description=description
+            description=description,
+            display_folder=display_folder
         )
 
     @mcp_instance.tool()

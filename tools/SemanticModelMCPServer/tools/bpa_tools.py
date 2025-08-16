@@ -55,10 +55,13 @@ def register_bpa_tools(mcp: FastMCP):
         This tool takes a TMSL JSON string and analyzes it against a comprehensive
         set of best practice rules to identify potential issues.
         
-        The tool automatically handles JSON formatting issues including:
+        The tool automatically handles JSON formatting issues and enhances analysis through:
         - Carriage returns and line ending normalization
-        - Escaped quotes and backslashes
+        - Escaped quotes and backslashes handling
         - Nested JSON string decoding
+        - **Enhanced JSON formatting and tidying for better BPA rule analysis**
+        - Consistent property ordering and structure standardization
+        - Data type normalization and boolean property standardization
 
         Args:
             tmsl_definition: TMSL JSON string (raw or escaped format)

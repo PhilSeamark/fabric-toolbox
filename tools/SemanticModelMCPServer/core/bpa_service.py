@@ -46,8 +46,11 @@ class BPAService:
             # Preprocess TMSL definition to handle formatting issues
             cleaned_tmsl = self._clean_tmsl_json(tmsl_definition)
             
+            # Format/tidy the TMSL JSON for better BPA rule analysis
+            formatted_tmsl = self._format_tmsl_json(cleaned_tmsl)
+            
             # Parse TMSL
-            tmsl_model = json.loads(cleaned_tmsl)
+            tmsl_model = json.loads(formatted_tmsl)
             
             # Run analysis
             violations = self.analyzer.analyze_model(tmsl_model)
@@ -304,3 +307,194 @@ class BPAService:
         cleaned = cleaned.replace('\\n', '\n').replace('\\t', '\t')
         
         return cleaned
+    
+    def _format_tmsl_json(self, tmsl_json: str) -> str:
+        """
+        Format and tidy TMSL JSON for better BPA rule analysis
+        
+        This method takes cleaned JSON and formats it consistently to improve
+        BPA rule matching and analysis accuracy.
+        
+        Args:
+            tmsl_json: Cleaned TMSL JSON string
+            
+        Returns:
+            Formatted and tidied JSON string
+        """
+        try:
+            # Parse the JSON to ensure it's valid
+            tmsl_data = json.loads(tmsl_json)
+            
+            # Apply consistent formatting and structure
+            formatted_data = self._tidy_tmsl_structure(tmsl_data)
+            
+            # Re-serialize with consistent formatting
+            # Use separators to ensure consistent spacing
+            # Use sort_keys=True for predictable key ordering (helps with rule matching)
+            formatted_json = json.dumps(
+                formatted_data,
+                indent=2,
+                separators=(',', ': '),
+                sort_keys=True,
+                ensure_ascii=False
+            )
+            
+            return formatted_json
+            
+        except json.JSONDecodeError as e:
+            # If formatting fails, return the original cleaned JSON
+            print(f"Warning: TMSL JSON formatting failed: {str(e)}. Using original cleaned JSON.")
+            return tmsl_json
+        except Exception as e:
+            # If any other error occurs, return the original cleaned JSON
+            print(f"Warning: TMSL JSON tidying failed: {str(e)}. Using original cleaned JSON.")
+            return tmsl_json
+    
+    def _tidy_tmsl_structure(self, tmsl_data: dict) -> dict:
+        """
+        Apply structural improvements to TMSL data for better BPA analysis
+        
+        Args:
+            tmsl_data: Parsed TMSL data structure
+            
+        Returns:
+            Tidied TMSL data structure
+        """
+        # Create a deep copy to avoid modifying the original
+        import copy
+        tidied_data = copy.deepcopy(tmsl_data)
+        
+        # Apply standardization to improve BPA rule matching
+        tidied_data = self._standardize_tmsl_model_structure(tidied_data)
+        
+        return tidied_data
+    
+    def _standardize_tmsl_model_structure(self, tmsl_data: dict) -> dict:
+        """
+        Standardize TMSL model structure for consistent BPA analysis
+        
+        This ensures that:
+        1. Model properties are consistently ordered
+        2. Array elements (tables, columns, measures) are sorted for predictable analysis
+        3. Missing optional properties are normalized
+        4. Data types are consistently formatted
+        
+        Args:
+            tmsl_data: TMSL data structure
+            
+        Returns:
+            Standardized TMSL structure
+        """
+        # Find the model object in various possible TMSL structures
+        model = None
+        if 'create' in tmsl_data and 'database' in tmsl_data['create'] and 'model' in tmsl_data['create']['database']:
+            model = tmsl_data['create']['database']['model']
+        elif 'model' in tmsl_data:
+            model = tmsl_data['model']
+        elif 'createOrReplace' in tmsl_data and 'database' in tmsl_data['createOrReplace'] and 'model' in tmsl_data['createOrReplace']['database']:
+            model = tmsl_data['createOrReplace']['database']['model']
+        
+        if not model:
+            return tmsl_data
+        
+        # Standardize tables array
+        if 'tables' in model and isinstance(model['tables'], list):
+            for table in model['tables']:
+                self._standardize_table_structure(table)
+                
+            # Sort tables by name for consistent ordering
+            model['tables'].sort(key=lambda x: x.get('name', ''))
+        
+        # Standardize relationships array
+        if 'relationships' in model and isinstance(model['relationships'], list):
+            # Sort relationships for consistent ordering
+            model['relationships'].sort(key=lambda x: f"{x.get('fromTable', '')}.{x.get('fromColumn', '')}")
+        
+        # Standardize expressions array
+        if 'expressions' in model and isinstance(model['expressions'], list):
+            # Sort expressions by name for consistent ordering
+            model['expressions'].sort(key=lambda x: x.get('name', ''))
+        
+        return tmsl_data
+    
+    def _standardize_table_structure(self, table: dict) -> None:
+        """
+        Standardize individual table structure for consistent BPA analysis
+        
+        Args:
+            table: Table object to standardize (modified in place)
+        """
+        # Standardize columns array
+        if 'columns' in table and isinstance(table['columns'], list):
+            for column in table['columns']:
+                self._standardize_column_structure(column)
+                
+            # Sort columns: key columns first, then by name
+            def column_sort_key(col):
+                is_key = col.get('isKey', False)
+                name = col.get('name', '')
+                return (not is_key, name)  # False sorts before True, so keys come first
+                
+            table['columns'].sort(key=column_sort_key)
+        
+        # Standardize measures array
+        if 'measures' in table and isinstance(table['measures'], list):
+            for measure in table['measures']:
+                self._standardize_measure_structure(measure)
+                
+            # Sort measures by name for consistent ordering
+            table['measures'].sort(key=lambda x: x.get('name', ''))
+        
+        # Standardize partitions array
+        if 'partitions' in table and isinstance(table['partitions'], list):
+            # Sort partitions by name
+            table['partitions'].sort(key=lambda x: x.get('name', ''))
+        
+        # Standardize hierarchies array
+        if 'hierarchies' in table and isinstance(table['hierarchies'], list):
+            # Sort hierarchies by name
+            table['hierarchies'].sort(key=lambda x: x.get('name', ''))
+    
+    def _standardize_column_structure(self, column: dict) -> None:
+        """
+        Standardize individual column structure
+        
+        Args:
+            column: Column object to standardize (modified in place)
+        """
+        # Ensure boolean properties are consistently represented
+        for bool_prop in ['isHidden', 'isKey', 'isNullable', 'isUnique']:
+            if bool_prop in column:
+                column[bool_prop] = bool(column[bool_prop])
+        
+        # Standardize dataType casing
+        if 'dataType' in column:
+            data_type = column['dataType']
+            if isinstance(data_type, str):
+                # Ensure consistent casing for common data types
+                data_type_map = {
+                    'string': 'String',
+                    'int64': 'Int64', 
+                    'decimal': 'Decimal',
+                    'double': 'Double',
+                    'datetime': 'DateTime',
+                    'boolean': 'Boolean'
+                }
+                column['dataType'] = data_type_map.get(data_type.lower(), data_type)
+    
+    def _standardize_measure_structure(self, measure: dict) -> None:
+        """
+        Standardize individual measure structure
+        
+        Args:
+            measure: Measure object to standardize (modified in place)
+        """
+        # Ensure boolean properties are consistently represented
+        for bool_prop in ['isHidden']:
+            if bool_prop in measure:
+                measure[bool_prop] = bool(measure[bool_prop])
+        
+        # Normalize formatString property
+        if 'formatString' in measure and not measure['formatString']:
+            # Remove empty format strings
+            del measure['formatString']

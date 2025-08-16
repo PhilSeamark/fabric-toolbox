@@ -223,7 +223,8 @@ class TOMSemanticModelManager:
             return {"success": False, "error": str(e)}
     
     def add_measure(self, table_name: str, measure_name: str, expression: str,
-                   format_string: Optional[str] = None, description: Optional[str] = None) -> Dict[str, Any]:
+                   format_string: Optional[str] = None, description: Optional[str] = None,
+                   display_folder: Optional[str] = None) -> Dict[str, Any]:
         """
         Add a new measure to a table using TOM.
         
@@ -233,6 +234,7 @@ class TOMSemanticModelManager:
             expression: DAX expression for the measure
             format_string: Optional format string for the measure
             description: Optional description for the measure
+            display_folder: Optional display folder for organizing measures
             
         Returns:
             Result of the operation
@@ -271,6 +273,8 @@ class TOMSemanticModelManager:
                 new_measure.FormatString = format_string
             if description:
                 new_measure.Description = description
+            if display_folder:
+                new_measure.DisplayFolder = display_folder
             
             # Add measure to table
             target_table.Measures.Add(new_measure)
@@ -288,6 +292,7 @@ class TOMSemanticModelManager:
                     "expression": expression,
                     "format_string": format_string or "",
                     "description": description or "",
+                    "display_folder": display_folder or "",
                     "table_name": table_name
                 }
             }
@@ -298,7 +303,7 @@ class TOMSemanticModelManager:
     
     def update_measure(self, table_name: str, measure_name: str, 
                       expression: Optional[str] = None, format_string: Optional[str] = None, 
-                      description: Optional[str] = None) -> Dict[str, Any]:
+                      description: Optional[str] = None, display_folder: Optional[str] = None) -> Dict[str, Any]:
         """
         Update an existing measure in a table using TOM.
         
@@ -308,6 +313,7 @@ class TOMSemanticModelManager:
             expression: Optional new DAX expression for the measure
             format_string: Optional new format string for the measure
             description: Optional new description for the measure
+            display_folder: Optional new display folder for the measure
             
         Returns:
             Result of the operation
@@ -346,6 +352,7 @@ class TOMSemanticModelManager:
             original_expression = target_measure.Expression if hasattr(target_measure, 'Expression') else ""
             original_format = target_measure.FormatString if hasattr(target_measure, 'FormatString') else ""
             original_description = target_measure.Description if hasattr(target_measure, 'Description') else ""
+            original_display_folder = target_measure.DisplayFolder if hasattr(target_measure, 'DisplayFolder') else ""
             
             # Update properties if provided
             changes_made = []
@@ -361,6 +368,10 @@ class TOMSemanticModelManager:
             if description is not None and description != original_description:
                 target_measure.Description = description
                 changes_made.append(f"Description: '{original_description}' → '{description}'")
+            
+            if display_folder is not None and display_folder != original_display_folder:
+                target_measure.DisplayFolder = display_folder
+                changes_made.append(f"Display Folder: '{original_display_folder}' → '{display_folder}'")
             
             if not changes_made:
                 return {
@@ -383,12 +394,82 @@ class TOMSemanticModelManager:
                     "expression": target_measure.Expression if hasattr(target_measure, 'Expression') else "",
                     "format_string": target_measure.FormatString if hasattr(target_measure, 'FormatString') else "",
                     "description": target_measure.Description if hasattr(target_measure, 'Description') else "",
+                    "display_folder": target_measure.DisplayFolder if hasattr(target_measure, 'DisplayFolder') else "",
                     "table_name": table_name
                 }
             }
             
         except Exception as e:
             logger.error(f"Error updating measure: {e}")
+            return {"success": False, "error": str(e)}
+
+    def delete_measure(self, table_name: str, measure_name: str) -> Dict[str, Any]:
+        """
+        Delete a measure from a table using TOM.
+        
+        Args:
+            table_name: Name of the table containing the measure
+            measure_name: Name of the measure to delete
+            
+        Returns:
+            Result of the operation
+        """
+        if not self.model:
+            return {"success": False, "error": "Not connected to a model"}
+        
+        try:
+            # Find the target table
+            target_table = None
+            for table in self.model.Tables:
+                if table.Name == table_name:
+                    target_table = table
+                    break
+            
+            if not target_table:
+                return {
+                    "success": False,
+                    "error": f"Table '{table_name}' not found in model"
+                }
+            
+            # Find the measure
+            target_measure = None
+            for measure in target_table.Measures:
+                if measure.Name == measure_name:
+                    target_measure = measure
+                    break
+            
+            if not target_measure:
+                return {
+                    "success": False,
+                    "error": f"Measure '{measure_name}' not found in table '{table_name}'"
+                }
+            
+            # Store measure info before deletion for confirmation
+            deleted_measure_info = {
+                "name": target_measure.Name,
+                "expression": target_measure.Expression if hasattr(target_measure, 'Expression') else "",
+                "format_string": target_measure.FormatString if hasattr(target_measure, 'FormatString') else "",
+                "description": target_measure.Description if hasattr(target_measure, 'Description') else "",
+                "display_folder": target_measure.DisplayFolder if hasattr(target_measure, 'DisplayFolder') else "",
+                "table_name": table_name
+            }
+            
+            # Remove the measure from the table
+            target_table.Measures.Remove(target_measure)
+            
+            # Save changes to the model
+            self.model.SaveChanges()
+            
+            logger.info(f"Successfully deleted measure '{measure_name}' from table '{table_name}'")
+            
+            return {
+                "success": True,
+                "message": f"Measure '{measure_name}' successfully deleted from table '{table_name}'",
+                "deleted_measure": deleted_measure_info
+            }
+            
+        except Exception as e:
+            logger.error(f"Error deleting measure: {e}")
             return {"success": False, "error": str(e)}
 
     def get_measure_info(self, table_name: str, measure_name: str) -> Dict[str, Any]:
@@ -1015,7 +1096,7 @@ def tom_list_model_tables(connection_string: str) -> str:
 
 def tom_add_measure_to_model(connection_string: str, table_name: str, measure_name: str, 
                            expression: str, format_string: Optional[str] = None, 
-                           description: Optional[str] = None) -> str:
+                           description: Optional[str] = None, display_folder: Optional[str] = None) -> str:
     """
     Add a measure to a semantic model using TOM.
     
@@ -1026,6 +1107,7 @@ def tom_add_measure_to_model(connection_string: str, table_name: str, measure_na
         expression: DAX expression for the measure
         format_string: Optional format string for the measure
         description: Optional description for the measure
+        display_folder: Optional display folder for organizing measures
         
     Returns:
         JSON string with operation result
@@ -1039,7 +1121,7 @@ def tom_add_measure_to_model(connection_string: str, table_name: str, measure_na
             return json.dumps(connect_result, indent=2)
         
         # Add measure
-        result = manager.add_measure(table_name, measure_name, expression, format_string, description)
+        result = manager.add_measure(table_name, measure_name, expression, format_string, description, display_folder)
         
         # Disconnect
         manager.disconnect()
@@ -1058,7 +1140,7 @@ def tom_add_measure_to_model(connection_string: str, table_name: str, measure_na
 
 def tom_update_measure_in_model(connection_string: str, table_name: str, measure_name: str,
                                expression: Optional[str] = None, format_string: Optional[str] = None,
-                               description: Optional[str] = None) -> str:
+                               description: Optional[str] = None, display_folder: Optional[str] = None) -> str:
     """
     Update an existing measure in a semantic model using TOM.
     
@@ -1069,6 +1151,7 @@ def tom_update_measure_in_model(connection_string: str, table_name: str, measure
         expression: Optional new DAX expression for the measure
         format_string: Optional new format string for the measure
         description: Optional new description for the measure
+        display_folder: Optional new display folder for the measure
         
     Returns:
         JSON string with operation result
@@ -1082,7 +1165,7 @@ def tom_update_measure_in_model(connection_string: str, table_name: str, measure
             return json.dumps(connect_result, indent=2)
         
         # Update measure
-        result = manager.update_measure(table_name, measure_name, expression, format_string, description)
+        result = manager.update_measure(table_name, measure_name, expression, format_string, description, display_folder)
         
         # Disconnect
         manager.disconnect()
@@ -1131,6 +1214,44 @@ def tom_get_measure_info(connection_string: str, table_name: str, measure_name: 
         error_result = {
             "success": False,
             "error": f"TOM measure info retrieval failed: {str(e)}",
+            "connection_string": connection_string,
+            "table_name": table_name,
+            "measure_name": measure_name
+        }
+        return json.dumps(error_result, indent=2)
+
+def tom_delete_measure_from_model(connection_string: str, table_name: str, measure_name: str) -> str:
+    """
+    Delete a measure from a table using TOM.
+    
+    Args:
+        connection_string: Connection string for Analysis Services
+        table_name: Name of the table containing the measure
+        measure_name: Name of the measure to delete
+        
+    Returns:
+        JSON string with operation result
+    """
+    try:
+        manager = TOMSemanticModelManager()
+        
+        # Connect
+        connect_result = manager.connect(connection_string)
+        if not connect_result.get("success", False):
+            return json.dumps(connect_result, indent=2)
+        
+        # Delete measure
+        result = manager.delete_measure(table_name, measure_name)
+        
+        # Disconnect
+        manager.disconnect()
+        
+        return json.dumps(result, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "success": False,
+            "error": f"TOM measure deletion failed: {str(e)}",
             "connection_string": connection_string,
             "table_name": table_name,
             "measure_name": measure_name
@@ -1449,7 +1570,8 @@ def tom_list_tables_by_database_name(server_connection_string: str, database_nam
 def tom_add_measure_by_database_name(server_connection_string: str, database_name: str, 
                                    table_name: str, measure_name: str, expression: str,
                                    format_string: Optional[str] = None, 
-                                   description: Optional[str] = None) -> str:
+                                   description: Optional[str] = None,
+                                   display_folder: Optional[str] = None) -> str:
     """
     Add a measure to a semantic model using TOM with explicit database selection.
     
@@ -1461,6 +1583,7 @@ def tom_add_measure_by_database_name(server_connection_string: str, database_nam
         expression: DAX expression for the measure
         format_string: Optional format string for the measure
         description: Optional description for the measure
+        display_folder: Optional display folder for organizing measures
         
     Returns:
         JSON string with operation results
@@ -1474,13 +1597,50 @@ def tom_add_measure_by_database_name(server_connection_string: str, database_nam
             return json.dumps(connect_result, indent=2)
         
         # Add measure using existing method
-        result = manager.add_measure(table_name, measure_name, expression, format_string, description)
+        result = manager.add_measure(table_name, measure_name, expression, format_string, description, display_folder)
         return json.dumps(result, indent=2)
         
     except Exception as e:
         error_result = {
             "success": False,
             "error": f"Failed to add measure: {str(e)}",
+            "server_connection_string": server_connection_string,
+            "database_name": database_name,
+            "table_name": table_name,
+            "measure_name": measure_name
+        }
+        return json.dumps(error_result, indent=2)
+
+def tom_delete_measure_by_database_name(server_connection_string: str, database_name: str, 
+                                       table_name: str, measure_name: str) -> str:
+    """
+    Delete a measure from a semantic model using TOM with explicit database selection.
+    
+    Args:
+        server_connection_string: Connection string for Analysis Services server (without catalog)
+        database_name: Name of the database/semantic model 
+        table_name: Name of the table containing the measure
+        measure_name: Name of the measure to delete
+        
+    Returns:
+        JSON string with operation results
+    """
+    try:
+        manager = TOMSemanticModelManager()
+        
+        # Connect to server and select specific database
+        connect_result = manager.connect(server_connection_string, database_name)
+        if not connect_result.get("success", False):
+            return json.dumps(connect_result, indent=2)
+        
+        # Delete measure using existing method
+        result = manager.delete_measure(table_name, measure_name)
+        return json.dumps(result, indent=2)
+        
+    except Exception as e:
+        error_result = {
+            "success": False,
+            "error": f"Failed to delete measure: {str(e)}",
             "server_connection_string": server_connection_string,
             "database_name": database_name,
             "table_name": table_name,
