@@ -2625,19 +2625,21 @@ def register_activation_tools(mcp_instance):
     
     @mcp_instance.tool()
     def activate_powerbi_analysis_tools() -> str:
-        """Activate BPA Analysis tools for semantic models."""
+        """🔍 Activate BPA Analysis tools for semantic models."""
         return json.dumps({
             "status": "success",
-            "message": "BPA Analysis tools are now active",
+            "message": "✅ BPA Analysis tools are now active and ready to use!",
             "available_tools": [
-                "analyze_model_bpa",
-                "analyze_tmsl_bpa", 
-                "generate_bpa_report",
-                "get_bpa_violations_by_severity",
-                "get_bpa_violations_by_category",
-                "get_bpa_rules_summary",
-                "get_bpa_categories"
-            ]
+                "analyze_model_bpa - Analyze deployed Power BI models",
+                "analyze_tmsl_bpa - Analyze TMSL definitions directly", 
+                "generate_bpa_report - Generate comprehensive BPA reports",
+                "get_bpa_violations_by_severity - Filter by ERROR/WARNING/INFO",
+                "get_bpa_violations_by_category - Filter by category",
+                "get_bpa_rules_summary - Overview of available rules",
+                "get_bpa_categories - List all rule categories"
+            ],
+            "quick_start": "Try: analyze_model_bpa('workspace_name', 'dataset_name')",
+            "categories": ["Performance", "DAX Expressions", "Maintenance", "Naming Conventions", "Formatting"]
         }, indent=2)
     
     @mcp_instance.tool()
@@ -2706,18 +2708,21 @@ def register_activation_tools(mcp_instance):
     
     @mcp_instance.tool()
     def activate_powerbi_dashboard_creation() -> str:
-        """Activate dashboard creation and visualization tools."""
+        """📊 Activate dashboard creation and visualization tools."""
         return json.dumps({
             "status": "success",
-            "message": "Dashboard creation tools are now active",
+            "message": "✅ Dashboard creation tools are now active and ready to use!",
             "available_tools": [
-                "generate_chart_from_dax_results",
-                "analyze_dax_results_for_charts",
-                "execute_dax_with_visualization",
-                "create_comprehensive_dashboard",
-                "list_active_dashboards",
-                "stop_dashboard"
-            ]
+                "generate_chart_from_dax_results - Create charts from DAX query results",
+                "analyze_dax_results_for_charts - Get chart type suggestions",
+                "execute_dax_with_visualization - Execute DAX + auto-generate charts",
+                "create_comprehensive_dashboard - Multi-chart dashboard from table data",
+                "list_active_dashboards - View running dashboards",
+                "stop_dashboard - Stop specific dashboard by ID"
+            ],
+            "quick_start": "Try: execute_dax_with_visualization('workspace', 'dataset', 'EVALUATE table')",
+            "chart_types": ["bar", "line", "pie", "scatter", "heatmap", "dashboard"],
+            "note": "All charts use pure Dash/Plotly - no Vega-Lite dependencies!"
         }, indent=2)
     
     @mcp_instance.tool()
@@ -2772,6 +2777,59 @@ def register_activation_tools(mcp_instance):
             "status": "success",
             "message": "Pylance tools are now active",
             "note": "Pylance tools are context-dependent and may require additional activation in Python environments"
+        }, indent=2)
+    
+    @mcp_instance.tool()
+    def smart_activate_tools(user_request: str = "", auto_detect: bool = True) -> str:
+        """
+        🤖 Smart tool activation based on user request context.
+        
+        This tool analyzes your request and automatically suggests which tool categories to activate.
+        No more guessing which activation command you need!
+        
+        Args:
+            user_request: Your request or question (e.g., "I want to run BPA analysis")
+            auto_detect: Whether to auto-detect required categories (default: True)
+        
+        Returns:
+            Specific activation commands and helpful guidance
+        """
+        from tools.smart_activation import create_smart_activation_tool
+        smart_tool = create_smart_activation_tool()
+        return smart_tool(user_request, auto_detect)
+    
+    @mcp_instance.tool()
+    def activate_all_powerbi_tools() -> str:
+        """
+        🚀 Activate ALL Power BI tools at once (convenience function).
+        
+        This activates all major tool categories in one command.
+        Use this when you're not sure which specific tools you need.
+        """
+        activated_categories = [
+            "BPA Analysis Tools",
+            "Dashboard Creation Tools", 
+            "Power BI & Lakehouse Tools",
+            "Local Power BI Development Tools",
+            "TOM (Tabular Object Model) Tools",
+            "TMSL (Tabular Model Scripting) Tools",
+            "Lakehouse Management Tools",
+            "Connection Management Tools",
+            "Microsoft Learn Research Tools"
+        ]
+        
+        return json.dumps({
+            "status": "success",
+            "message": "✅ ALL Power BI tools are now active and ready to use!",
+            "activated_categories": activated_categories,
+            "total_tools_activated": "70+ tools across all categories",
+            "note": "You can now use any semantic model, BPA, chart, or Power BI tool without additional activation",
+            "quick_starts": {
+                "BPA": "analyze_model_bpa('workspace', 'dataset')",
+                "Charts": "execute_dax_with_visualization('workspace', 'dataset', 'DAX query')",
+                "Local Power BI": "detect_local_powerbi_desktop()",
+                "Workspaces": "list_powerbi_workspaces()"
+            }
         }, indent=2)
 
 def main():

@@ -12,11 +12,12 @@ from typing import Dict, Any, List, Optional
 sys.path.append(os.path.dirname(__file__))
 
 try:
-    from chart_generator import generate_chart_from_dax_results, ChartGenerator
+    from tools.dash_chart_generator import generate_chart_from_dax_results, DashChartGenerator
+    from chart_generator import ChartGenerator  # Backward compatibility
     CHART_GENERATOR_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     CHART_GENERATOR_AVAILABLE = False
-    print("Warning: Chart generator not available. Some features may be limited.")
+    print(f"Warning: Chart generator not available: {e}. Some features may be limited.")
 
 from core.dax_chart_integration import (
     execute_dax_query_with_charts,
@@ -56,17 +57,21 @@ def register_chart_tools(mcp):
         chart_title: Optional[str] = None,
         interactive: bool = True,
         x_column: Optional[str] = None,
-        y_column: Optional[str] = None
+        y_column: Optional[str] = None,
+        title: Optional[str] = None  # Add backward compatibility for MCP framework
     ) -> Dict[str, Any]:
         """Generate charts from DAX query results"""
         
         if not CHART_GENERATOR_AVAILABLE:
             return {
                 "success": False,
-                "error": "Chart generator module not available. Please install required dependencies: pip install matplotlib pandas numpy seaborn altair"
+                "error": "Chart generator module not available. Please install required dependencies: pip install dash plotly pandas numpy"
             }
         
         try:
+            # Handle both parameter names for title
+            final_title = chart_title or title
+            
             # Ensure output directory exists
             output_dir = os.path.join(os.getcwd(), "output")
             os.makedirs(output_dir, exist_ok=True)
@@ -77,9 +82,9 @@ def register_chart_tools(mcp):
             }
             
             if output_filename:
-                chart_kwargs["filename"] = output_filename
-            if chart_title:
-                chart_kwargs["title"] = chart_title
+                chart_kwargs["output_filename"] = output_filename
+            if final_title:
+                chart_kwargs["chart_title"] = final_title
             if x_column:
                 chart_kwargs["x_column"] = x_column
             if y_column:
@@ -87,7 +92,7 @@ def register_chart_tools(mcp):
             
             # Generate chart
             result = generate_chart_from_dax_results(
-                dax_results, chart_type, output_dir, **chart_kwargs
+                dax_results, chart_type, **chart_kwargs
             )
             
             # Create a summary report
@@ -251,7 +256,7 @@ def register_chart_tools(mcp):
         
         try:
             # Import local DAX execution function
-            from tools.local_powerbi_explorer import execute_dax_query_local
+            from tools.improved_dax_explorer import execute_dax_query_local
             
             # Execute DAX query first
             dax_results = execute_dax_query_local(connection_string, dax_query)
@@ -338,7 +343,7 @@ def register_chart_tools(mcp):
             # Determine if using local or cloud connection
             if connection_string:
                 # Local Power BI Desktop
-                from tools.local_powerbi_explorer import execute_dax_query_local
+                from tools.improved_dax_explorer import execute_dax_query_local
                 dax_query = f"EVALUATE TOPN({max_rows}, '{table_name}')"
                 dax_results = execute_dax_query_local(connection_string, dax_query)
                 source_info = f"Local Power BI Desktop ({connection_string})"
@@ -403,7 +408,7 @@ def install_chart_dependencies():
         import subprocess
         import sys
         
-        packages = ["matplotlib", "pandas", "numpy", "seaborn", "altair"]
+        packages = ["dash", "plotly", "pandas", "numpy"]
         
         for package in packages:
             try:

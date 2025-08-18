@@ -12,7 +12,7 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'tools'))
 
 try:
-    from chart_generator import generate_chart_from_dax_results
+    from tools.dash_chart_generator import generate_chart_from_dax_results
 except ImportError:
     # Fallback if chart generator is not available
     def generate_chart_from_dax_results(*args, **kwargs):
@@ -44,7 +44,7 @@ def execute_dax_query_with_charts(dax_results: Dict, chart_type: str = "auto",
         
         # Generate charts from the DAX results
         chart_results = generate_chart_from_dax_results(
-            dax_results, chart_type, output_dir, **kwargs
+            dax_results, chart_type, **kwargs
         )
         
         return {

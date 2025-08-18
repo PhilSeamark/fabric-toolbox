@@ -2,23 +2,37 @@
 
 **MANDATORY RULE**: When using #semantic_model_mcp_server, ALWAYS activate the required tool categories BEFORE attempting to use any tools. Never assume tools are "disabled" - instead, proactively activate them.
 
-### **Required Tool Activation Commands**:
+### **🆕 SMART ACTIVATION SYSTEM (Recommended)**:
+
+#### **Option 1: Auto-Detection (Easiest)**
+```
+smart_activate_tools("I want to run BPA analysis")
+smart_activate_tools("Create charts from DAX results")
+smart_activate_tools("Analyze local Power BI model")
+```
+
+#### **Option 2: Activate Everything (Fastest)**
+```
+activate_all_powerbi_tools
+```
+
+#### **Option 3: Specific Activation (Manual)**
 - **For BPA Analysis**: `activate_powerbi_analysis_tools`
-- **For Model Operations**: `activate_powerbi_and_lakehouse_tools` 
-- **For Lakehouse Management**: `activate_powerbi_lakehouse_management`
-- **For TOM Operations**: `activate_powerbi_tom_management`
-- **For TMSL Operations**: `activate_powerbi_tmsl_management`
-- **For Dashboard Creation**: `activate_powerbi_dashboard_creation`
+- **For Charts/Dashboards**: `activate_powerbi_dashboard_creation`
+- **For Power BI Service**: `activate_powerbi_and_lakehouse_tools` 
 - **For Local Power BI**: `activate_powerbi_local_development`
-- **For Connection Management**: `activate_powerbi_connection_management`
-- **For Microsoft Learn**: `activate_powerbi_learn_management`
-- **For Pylance Tools**: `activate_pylance_tools`
+- **For Model Creation (TOM)**: `activate_powerbi_tom_management`
+- **For TMSL Operations**: `activate_powerbi_tmsl_management`
+- **For Lakehouses**: `activate_powerbi_lakehouse_management`
 
 **WORKFLOW**: 
-1. User requests functionality (e.g., "run BPA analysis")
-2. Immediately activate appropriate tools (e.g., `activate_powerbi_analysis_tools`)
-3. Then proceed with the requested operation
-4. Never tell user "tools are disabled" - just activate them!
+1. **SMART**: Use `smart_activate_tools("describe what you want to do")` for automatic detection
+2. **FAST**: Use `activate_all_powerbi_tools` to activate everything at once
+3. **MANUAL**: Use specific activation commands for individual categories
+4. Then proceed with the requested operation
+5. Never tell user "tools are disabled" - just activate them!
+
+**See TOOL_ACTIVATION_GUIDE.md for complete details and examples.**
 
 ## Tools
 1. **Mandatory** Using semantic_model_mcp_server MCP

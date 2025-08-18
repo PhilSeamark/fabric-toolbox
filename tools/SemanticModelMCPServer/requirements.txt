@@ -23,8 +23,10 @@ dash>=2.14.0
 numpy>=1.24.0
 pandas>=2.0.0
 
-# Interactive plotting and charting
+# Interactive plotting and charting (Dash-integrated)
 plotly>=5.15.0
+
+# Note: Removed altair, seaborn, matplotlib - using only Dash/Plotly for all charts
 
 # URL parsing (built-in, but ensuring compatibility)
 urllib3>=2.0.0
