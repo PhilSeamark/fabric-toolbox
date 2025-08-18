@@ -20,9 +20,21 @@ The BPA analyzes TMSL (Tabular Model Scripting Language) definitions and identif
 #### `analyze_model_bpa(workspace_name, dataset_name)`
 Analyzes a deployed semantic model for BPA violations.
 
+**✅ OPTIMIZED**: Now handles large TMSL processing server-side to prevent chat context bloat.
+
 ```python
-# Analyze a specific model
+# Analyze a specific model (optimized single-call approach)
 result = analyze_model_bpa("Sales Workspace", "Sales Model")
+```
+
+#### `analyze_model_bpa_summary(workspace_name, dataset_name)` 
+**🆕 NEW**: Lightweight BPA analysis that returns only summary metrics and top issues.
+
+**Perfect for**: Quick health checks, dashboards, or when you only need overview information.
+
+```python
+# Get lightweight summary - dramatically reduced response size
+summary = analyze_model_bpa_summary("Sales Workspace", "Sales Model")
 ```
 
 #### `analyze_tmsl_bpa(tmsl_definition)`
@@ -138,16 +150,19 @@ Display and formatting including:
 ### Basic Analysis Workflow
 
 ```python
-# 1. Analyze a model
+# 🚀 OPTIMIZED: Quick health check (recommended first step)
+summary = analyze_model_bpa_summary("MyWorkspace", "MyDataset")
+
+# 📊 Full analysis when you need detailed violation information  
 analysis = analyze_model_bpa("MyWorkspace", "MyDataset")
 
-# 2. Generate summary report
+# 📈 Generate comprehensive report
 report = generate_bpa_report("MyWorkspace", "MyDataset", "summary")
 
-# 3. Focus on critical issues
+# 🚨 Focus on critical issues
 errors = get_bpa_violations_by_severity("ERROR")
 
-# 4. Address performance issues
+# 🎯 Address performance issues
 perf_issues = get_bpa_violations_by_category("Performance")
 ```
 

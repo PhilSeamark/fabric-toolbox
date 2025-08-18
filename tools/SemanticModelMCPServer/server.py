@@ -1695,8 +1695,14 @@ def get_model_definition(workspace_name:str = None, dataset_name:str=None) -> st
     server.Connect(connection_string)
     database: Database = server.Databases.GetByName(dataset_name)
 
+    # Configure serialization options to reduce TMSL size and improve efficiency
     options = SerializeOptions()
-    options.IgnoreTimestamps = True
+    options.IgnoreTimestamps = True               # Remove timestamps like ModifiedTime (saves space)
+    options.IgnoreInferredObjects = True          # Remove auto-generated objects like RowNumberColumn
+    options.IgnoreInferredProperties = True       # Remove server-controlled properties like Column.State
+    # Additional size reduction options (commented out to maintain full model definition for BPA analysis)
+    options.IgnoreChildren = False                # Keep True to get full model definition
+    options.IgnoreChildrenExceptAnnotations = False  # Keep False to include all child objects
 
     tmsl_definition = JsonSerializer.SerializeDatabase(database, options)
     return tmsl_definition

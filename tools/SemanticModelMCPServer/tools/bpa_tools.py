@@ -19,6 +19,8 @@ def register_bpa_tools(mcp: FastMCP):
 
         This tool retrieves the TMSL definition of a model and runs it through
         a comprehensive set of best practice rules to identify potential issues.
+        
+        OPTIMIZED: Handles large TMSL processing server-side to avoid chat context bloat.
 
         Args:
             workspace_name: The Power BI workspace name
@@ -28,18 +30,44 @@ def register_bpa_tools(mcp: FastMCP):
             JSON string with BPA analysis results including violations and summary
         """
         try:
-            # For now, use analyze_tmsl_bpa as a workaround
-            # This is a workaround - use the existing tool pipeline
-            # Get TMSL first, then analyze it
-            return json.dumps({
-                'success': False,
-                'error': 'analyze_model_bpa is temporarily unavailable. Please use get_model_definition followed by analyze_tmsl_bpa as a workaround.',
-                'error_type': 'function_unavailable',
-                'workaround': {
-                    'step1': f'tmsl = get_model_definition("{workspace_name}", "{dataset_name}")',
-                    'step2': 'result = analyze_tmsl_bpa(tmsl["result"])'
-                }
-            })
+            # Import required modules
+            import sys
+            import os
+            
+            # Add the parent directory to sys.path to import server functions
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            parent_dir = os.path.dirname(current_dir)
+            if parent_dir not in sys.path:
+                sys.path.append(parent_dir)
+            
+            # Import server functions for TMSL retrieval
+            from server import get_model_definition
+            from core.bpa_service import BPAService
+            
+            # Step 1: Get TMSL definition (server-side, not exposed to chat)
+            tmsl_definition = get_model_definition(workspace_name, dataset_name)
+            
+            if not tmsl_definition or tmsl_definition.startswith("Error:"):
+                return json.dumps({
+                    'success': False,
+                    'error': f'Failed to retrieve model definition: {tmsl_definition}',
+                    'error_type': 'model_retrieval_error'
+                })
+            
+            # Step 2: Run BPA analysis (server-side)
+            server_directory = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            bpa_service = BPAService(server_directory)
+            analysis_result = bpa_service.analyze_model_from_tmsl(tmsl_definition)
+            
+            # Step 3: Add optimization metrics for transparency
+            tmsl_size_kb = len(tmsl_definition) / 1024
+            analysis_result['optimization_info'] = {
+                'tmsl_size_kb': round(tmsl_size_kb, 2),
+                'processed_server_side': True,
+                'chat_context_saved': f"~{round(tmsl_size_kb)}KB of TMSL data kept server-side"
+            }
+            
+            return json.dumps(analysis_result, indent=2)
             
         except Exception as e:
             return json.dumps({
@@ -169,6 +197,119 @@ def register_bpa_tools(mcp: FastMCP):
                 'success': False,
                 'error': f'Error getting BPA rules summary: {str(e)}',
                 'error_type': 'bpa_rules_error'
+            })
+
+    @mcp.tool
+    def analyze_model_bpa_summary(workspace_name: str, dataset_name: str) -> str:
+        """Get a lightweight BPA summary for a semantic model without detailed violation data.
+        
+        OPTIMIZED: Returns only key metrics and counts to minimize chat context usage.
+        Use this when you only need overview information, not detailed violation lists.
+
+        Args:
+            workspace_name: The Power BI workspace name
+            dataset_name: The dataset/model name to analyze
+
+        Returns:
+            JSON string with lightweight BPA summary (counts, top issues, recommendations)
+        """
+        try:
+            # Import required modules
+            import sys
+            import os
+            
+            # Add the parent directory to sys.path to import server functions
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            parent_dir = os.path.dirname(current_dir)
+            if parent_dir not in sys.path:
+                sys.path.append(parent_dir)
+            
+            # Import server functions for TMSL retrieval
+            from server import get_model_definition
+            from core.bpa_service import BPAService
+            
+            # Step 1: Get TMSL definition (server-side)
+            tmsl_definition = get_model_definition(workspace_name, dataset_name)
+            
+            if not tmsl_definition or tmsl_definition.startswith("Error:"):
+                return json.dumps({
+                    'success': False,
+                    'error': f'Failed to retrieve model definition: {tmsl_definition}',
+                    'error_type': 'model_retrieval_error'
+                })
+            
+            # Step 2: Run BPA analysis (server-side)
+            server_directory = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            bpa_service = BPAService(server_directory)
+            analysis_result = bpa_service.analyze_model_from_tmsl(tmsl_definition)
+            
+            if not analysis_result.get('success'):
+                return json.dumps(analysis_result)
+            
+            # Step 3: Extract only summary information (no detailed violations)
+            violations = analysis_result.get('violations', [])
+            summary = analysis_result.get('summary', {})
+            
+            # Count by severity
+            severity_counts = {'ERROR': 0, 'WARNING': 0, 'INFO': 0}
+            category_counts = {}
+            top_issues = []
+            
+            for violation in violations:
+                severity = violation.get('severity', 'INFO')
+                if severity in severity_counts:
+                    severity_counts[severity] += 1
+                
+                category = violation.get('category', 'Unknown')
+                category_counts[category] = category_counts.get(category, 0) + 1
+                
+                # Collect top ERROR violations
+                if severity == 'ERROR' and len(top_issues) < 5:
+                    top_issues.append({
+                        'rule_name': violation.get('rule_name'),
+                        'object_type': violation.get('object_type'),
+                        'object_name': violation.get('object_name'),
+                        'category': violation.get('category')
+                    })
+            
+            # Create lightweight summary
+            lightweight_summary = {
+                'success': True,
+                'workspace_name': workspace_name,
+                'dataset_name': dataset_name,
+                'total_violations': len(violations),
+                'severity_breakdown': severity_counts,
+                'category_breakdown': category_counts,
+                'top_critical_issues': top_issues,
+                'recommendations': [],
+                'optimization_info': {
+                    'tmsl_size_kb': round(len(tmsl_definition) / 1024, 2),
+                    'violations_summarized': len(violations),
+                    'data_reduction': f"Reduced {len(violations)} violations to summary format"
+                }
+            }
+            
+            # Add recommendations based on counts
+            if severity_counts['ERROR'] > 0:
+                lightweight_summary['recommendations'].append(
+                    f"CRITICAL: Fix {severity_counts['ERROR']} ERROR-level issues first"
+                )
+            if severity_counts['WARNING'] > 5:
+                lightweight_summary['recommendations'].append(
+                    f"Review {severity_counts['WARNING']} WARNING-level performance/maintainability issues"
+                )
+            if category_counts.get('Performance', 0) > 0:
+                lightweight_summary['recommendations'].append(
+                    f"Address {category_counts['Performance']} performance optimization opportunities"
+                )
+            
+            return json.dumps(lightweight_summary, indent=2)
+            
+        except Exception as e:
+            return json.dumps({
+                'success': False,
+                'error': f'BPA summary analysis failed: {str(e)}',
+                'error_type': 'bpa_summary_error'
             })
 
     @mcp.tool
