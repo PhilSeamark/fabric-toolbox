@@ -1064,6 +1064,8 @@ def _internal_query_lakehouse_sql_endpoint(workspace_id: str, sql_query: str, la
     """
     import json
     import struct
+    import decimal
+    import uuid
 
     # Use the same authentication token as all other Power BI functions
     # This eliminates the need for separate authentication and works with lakehouse SQL endpoints
@@ -1153,22 +1155,61 @@ def _internal_query_lakehouse_sql_endpoint(workspace_id: str, sql_query: str, la
             
             # Get column names
             columns = [column[0] for column in cursor.description]
-            
+
             # Fetch results
             rows = cursor.fetchall()
-            
+
+            # Helper to coerce common non-JSON types to serializable forms
+            def _to_json_serializable(v):
+                # None stays None
+                if v is None:
+                    return None
+
+                # Datetime/date/time objects
+                if hasattr(v, 'isoformat'):
+                    try:
+                        return v.isoformat()
+                    except Exception:
+                        return str(v)
+
+                # Decimal -> convert to float when possible, else string
+                if isinstance(v, decimal.Decimal):
+                    try:
+                        # Prefer numeric conversion but fall back to string if overflow
+                        return float(v)
+                    except Exception:
+                        return str(v)
+
+                # UUID -> string
+                if isinstance(v, uuid.UUID):
+                    return str(v)
+
+                # Bytes / binary -> safe string
+                if isinstance(v, (bytes, bytearray)):
+                    try:
+                        return v.decode('utf-8')
+                    except Exception:
+                        return str(v)
+
+                # Numpy scalars/arrays (optional import)
+                try:
+                    import numpy as _np
+                    if isinstance(v, _np.generic):
+                        return v.item()
+                    if isinstance(v, _np.ndarray):
+                        return v.tolist()
+                except Exception:
+                    pass
+
+                # Fallback: try to return as-is; JSON encoder will handle basic types
+                return v
+
             # Convert to list of dictionaries
             results = []
             for row in rows:
                 row_dict = {}
                 for i, value in enumerate(row):
-                    # Handle special data types
-                    if hasattr(value, 'isoformat'):  # datetime objects
-                        row_dict[columns[i]] = value.isoformat()
-                    elif isinstance(value, (bytes, bytearray)):  # binary data
-                        row_dict[columns[i]] = str(value)
-                    else:
-                        row_dict[columns[i]] = value
+                    row_dict[columns[i]] = _to_json_serializable(value)
                 results.append(row_dict)
             
             return json.dumps({
