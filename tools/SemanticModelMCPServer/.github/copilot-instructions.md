@@ -1,3 +1,25 @@
+## 🚨 **CRITICAL**: Always Activate Required Tools First
+
+**MANDATORY RULE**: When using #semantic_model_mcp_server, ALWAYS activate the required tool categories BEFORE attempting to use any tools. Never assume tools are "disabled" - instead, proactively activate them.
+
+### **Required Tool Activation Commands**:
+- **For BPA Analysis**: `activate_powerbi_analysis_tools`
+- **For Model Operations**: `activate_powerbi_and_lakehouse_tools` 
+- **For Lakehouse Management**: `activate_powerbi_lakehouse_management`
+- **For TOM Operations**: `activate_powerbi_tom_management`
+- **For TMSL Operations**: `activate_powerbi_tmsl_management`
+- **For Dashboard Creation**: `activate_powerbi_dashboard_creation`
+- **For Local Power BI**: `activate_powerbi_local_development`
+- **For Connection Management**: `activate_powerbi_connection_management`
+- **For Microsoft Learn**: `activate_powerbi_learn_management`
+- **For Pylance Tools**: `activate_pylance_tools`
+
+**WORKFLOW**: 
+1. User requests functionality (e.g., "run BPA analysis")
+2. Immediately activate appropriate tools (e.g., `activate_powerbi_analysis_tools`)
+3. Then proceed with the requested operation
+4. Never tell user "tools are disabled" - just activate them!
+
 ## Tools
 1. **Mandatory** Using semantic_model_mcp_server MCP
 

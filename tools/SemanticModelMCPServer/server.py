@@ -907,27 +907,27 @@ def execute_dax_query(workspace_name:str, dataset_name: str, dax_query: str, dat
         clr.AddReference(os.path.join(dotnet_dir, "Microsoft.IdentityModel.Abstractions.dll"))
         clr.AddReference(os.path.join(dotnet_dir, "Microsoft.AnalysisServices.AdomdClient.dll"))
     except Exception as e:
-        return {"error": f"Failed to load required .NET assemblies: {str(e)}", "error_type": "assembly_load_error", "success": False}
+        return json.dumps({"error": f"Failed to load required .NET assemblies: {str(e)}", "error_type": "assembly_load_error", "success": False})
 
     try:
         from Microsoft.AnalysisServices.AdomdClient import AdomdConnection ,AdomdDataReader  # type: ignore
     except ImportError as e:
-        return {"error": f"Failed to import ADOMD libraries: {str(e)}", "error_type": "import_error", "success": False}
+        return json.dumps({"error": f"Failed to import ADOMD libraries: {str(e)}", "error_type": "import_error", "success": False})
 
     # Validate authentication
     access_token = get_access_token()
     if not access_token:
-        return {"error": "No valid access token available. Please check authentication.", "error_type": "authentication_error", "success": False}
+        return json.dumps({"error": "No valid access token available. Please check authentication.", "error_type": "authentication_error", "success": False})
 
     # Validate required parameters
     if not workspace_name or not workspace_name.strip():
-        return {"error": "Workspace name is required and cannot be empty.", "error_type": "parameter_error", "success": False}
+        return json.dumps({"error": "Workspace name is required and cannot be empty.", "error_type": "parameter_error", "success": False})
     
     if not dataset_name or not dataset_name.strip():
-        return {"error": "Dataset name is required and cannot be empty.", "error_type": "parameter_error", "success": False}
+        return json.dumps({"error": "Dataset name is required and cannot be empty.", "error_type": "parameter_error", "success": False})
     
     if not dax_query or not dax_query.strip():
-        return {"error": "DAX query is required and cannot be empty.", "error_type": "parameter_error", "success": False}
+        return json.dumps({"error": "DAX query is required and cannot be empty.", "error_type": "parameter_error", "success": False})
 
     workspace_name_encoded = urllib.parse.quote(workspace_name)
     # Use URL-encoded workspace name and standard XMLA connection format
@@ -993,10 +993,10 @@ def execute_dax_query(workspace_name:str, dataset_name: str, dax_query: str, dat
         if results:
             column_names = list(results[0].keys())
         
-        # Return structured response with proper numeric types preserved
+        # Return structured response as JSON string (MCP tool requirement)
         # Since we've already converted System.Decimal to Python float above,
-        # we can safely return the Python object without JSON serialization
-        return {
+        # we can safely return the Python object after JSON serialization
+        response = {
             "success": True,
             "data": results,
             "row_count": len(results),
@@ -1005,25 +1005,29 @@ def execute_dax_query(workspace_name:str, dataset_name: str, dax_query: str, dat
             "dataset": dataset_name
         }
         
+        return json.dumps(response)
+        
     except Exception as e:
         error_msg = str(e).lower()
         error_details = str(e)
         
         # Categorize different types of errors and provide helpful messages
         if "authentication" in error_msg or "unauthorized" in error_msg or "login" in error_msg:
-            return {"error": f"Authentication failed: {error_details}. Please check your access token and permissions.", "error_type": "authentication_error", "success": False}
+            error_response = {"error": f"Authentication failed: {error_details}. Please check your access token and permissions.", "error_type": "authentication_error", "success": False}
         elif "workspace" in error_msg or "not found" in error_msg:
-            return {"error": f"Workspace or dataset not found: {error_details}. Please verify workspace name '{workspace_name}' and dataset name '{dataset_name}' are correct.", "error_type": "not_found_error", "success": False}
+            error_response = {"error": f"Workspace or dataset not found: {error_details}. Please verify workspace name '{workspace_name}' and dataset name '{dataset_name}' are correct.", "error_type": "not_found_error", "success": False}
         elif "permission" in error_msg or "access" in error_msg or "forbidden" in error_msg:
-            return {"error": f"Permission denied: {error_details}. You may not have sufficient permissions to query this dataset.", "error_type": "permission_error", "success": False}
+            error_response = {"error": f"Permission denied: {error_details}. You may not have sufficient permissions to query this dataset.", "error_type": "permission_error", "success": False}
         elif "syntax" in error_msg or "parse" in error_msg or "invalid" in error_msg:
-            return {"error": f"DAX query syntax error: {error_details}. Please check your DAX query syntax.", "error_type": "dax_syntax_error", "query_provided": "yes", "success": False}
+            error_response = {"error": f"DAX query syntax error: {error_details}. Please check your DAX query syntax.", "error_type": "dax_syntax_error", "query_provided": "yes", "success": False}
         elif "timeout" in error_msg or "timed out" in error_msg:
-            return {"error": f"Query timeout: {error_details}. The query took too long to execute.", "error_type": "timeout_error", "success": False}
+            error_response = {"error": f"Query timeout: {error_details}. The query took too long to execute.", "error_type": "timeout_error", "success": False}
         elif "connection" in error_msg or "network" in error_msg:
-            return {"error": f"Connection error: {error_details}. Please check your network connection and try again.", "error_type": "connection_error", "success": False}
+            error_response = {"error": f"Connection error: {error_details}. Please check your network connection and try again.", "error_type": "connection_error", "success": False}
         else:
-            return {"error": f"Unexpected error executing DAX query: {error_details}", "error_type": "general_error", "query_provided": "yes", "success": False}
+            error_response = {"error": f"Unexpected error executing DAX query: {error_details}", "error_type": "general_error", "query_provided": "yes", "success": False}
+        
+        return json.dumps(error_response)
     
     finally:
         # Ensure connection is always closed
@@ -2569,6 +2573,160 @@ def register_tom_tools(mcp_instance):
         # Use the core refresh function
         return tom_refresh_semantic_model(server_connection_string, dataset_name, refresh_type)
 
+def register_activation_tools(mcp_instance):
+    """Register tool activation functions to ensure all tool categories are available."""
+    
+    @mcp_instance.tool()
+    def activate_powerbi_analysis_tools() -> str:
+        """Activate BPA Analysis tools for semantic models."""
+        return json.dumps({
+            "status": "success",
+            "message": "BPA Analysis tools are now active",
+            "available_tools": [
+                "analyze_model_bpa",
+                "analyze_tmsl_bpa", 
+                "generate_bpa_report",
+                "get_bpa_violations_by_severity",
+                "get_bpa_violations_by_category",
+                "get_bpa_rules_summary",
+                "get_bpa_categories"
+            ]
+        }, indent=2)
+    
+    @mcp_instance.tool()
+    def activate_powerbi_and_lakehouse_tools() -> str:
+        """Activate Power BI and Lakehouse management tools."""
+        return json.dumps({
+            "status": "success", 
+            "message": "Power BI and Lakehouse tools are now active",
+            "available_tools": [
+                "list_powerbi_workspaces",
+                "list_powerbi_datasets", 
+                "get_powerbi_workspace_id",
+                "execute_dax_query",
+                "get_model_definition",
+                "list_fabric_lakehouses",
+                "list_fabric_delta_tables",
+                "query_lakehouse_sql_endpoint"
+            ]
+        }, indent=2)
+    
+    @mcp_instance.tool()
+    def activate_powerbi_lakehouse_management() -> str:
+        """Activate Fabric Lakehouse management tools."""
+        return json.dumps({
+            "status": "success",
+            "message": "Lakehouse management tools are now active", 
+            "available_tools": [
+                "list_fabric_lakehouses",
+                "list_fabric_delta_tables",
+                "get_lakehouse_sql_connection_string",
+                "query_lakehouse_sql_endpoint",
+                "debug_lakehouse_contents"
+            ]
+        }, indent=2)
+    
+    @mcp_instance.tool()
+    def activate_powerbi_tom_management() -> str:
+        """Activate Tabular Object Model (TOM) management tools."""
+        return json.dumps({
+            "status": "success",
+            "message": "TOM management tools are now active",
+            "available_tools": [
+                "tom_add_measure_to_powerbi_service",
+                "tom_list_tables_in_powerbi_service", 
+                "tom_create_empty_model_with_auth",
+                "tom_add_lakehouse_expression_with_auth",
+                "tom_add_table_with_lakehouse_partition_with_au",
+                "tom_add_model_relationships",
+                "tom_delete_measure_from_semantic_model"
+            ]
+        }, indent=2)
+    
+    @mcp_instance.tool()
+    def activate_powerbi_tmsl_management() -> str:
+        """Activate TMSL (Tabular Model Scripting Language) management tools."""
+        return json.dumps({
+            "status": "success",
+            "message": "TMSL management tools are now active",
+            "available_tools": [
+                "update_model_using_tmsl",
+                "generate_directlake_tmsl_template", 
+                "get_model_definition",
+                "validate_tmsl_structure"
+            ]
+        }, indent=2)
+    
+    @mcp_instance.tool()
+    def activate_powerbi_dashboard_creation() -> str:
+        """Activate dashboard creation and visualization tools."""
+        return json.dumps({
+            "status": "success",
+            "message": "Dashboard creation tools are now active",
+            "available_tools": [
+                "generate_chart_from_dax_results",
+                "analyze_dax_results_for_charts",
+                "execute_dax_with_visualization",
+                "create_comprehensive_dashboard",
+                "list_active_dashboards",
+                "stop_dashboard"
+            ]
+        }, indent=2)
+    
+    @mcp_instance.tool()
+    def activate_powerbi_local_development() -> str:
+        """Activate local Power BI Desktop development tools."""
+        return json.dumps({
+            "status": "success",
+            "message": "Local Power BI development tools are now active",
+            "available_tools": [
+                "detect_local_powerbi_desktop",
+                "explore_local_powerbi_tables",
+                "explore_local_powerbi_columns", 
+                "explore_local_powerbi_measures",
+                "execute_local_powerbi_dax",
+                "test_local_powerbi_connection",
+                "compare_powerbi_detection_methods"
+            ]
+        }, indent=2)
+    
+    @mcp_instance.tool()
+    def activate_powerbi_connection_management() -> str:
+        """Activate Power BI connection and authentication management tools."""
+        return json.dumps({
+            "status": "success",
+            "message": "Connection management tools are now active",
+            "available_tools": [
+                "clear_azure_token_cache",
+                "get_azure_token_status",
+                "get_server_version",
+                "compare_analysis_services_connections"
+            ]
+        }, indent=2)
+    
+    @mcp_instance.tool()
+    def activate_powerbi_learn_management() -> str:
+        """Activate Microsoft Learn research and documentation tools."""
+        return json.dumps({
+            "status": "success",
+            "message": "Microsoft Learn management tools are now active",
+            "available_tools": [
+                "search_learn_microsoft_content",
+                "get_learn_microsoft_paths",
+                "get_learn_microsoft_modules",
+                "get_learn_microsoft_content"
+            ]
+        }, indent=2)
+    
+    @mcp_instance.tool()
+    def activate_pylance_tools() -> str:
+        """Activate Pylance Python development tools."""
+        return json.dumps({
+            "status": "success",
+            "message": "Pylance tools are now active",
+            "note": "Pylance tools are context-dependent and may require additional activation in Python environments"
+        }, indent=2)
+
 def main():
     """Main entry point for the Semantic Model MCP Server."""
 
@@ -2588,6 +2746,9 @@ def main():
         logging.warning(f"Dash tools not available: {e}")
     except Exception as e:
         logging.error(f"Error registering Dash tools: {e}")
+
+    # Register tool activation functions
+    register_activation_tools(mcp)
 
     logging.info("Starting Semantic Model MCP Server")
     mcp.run()

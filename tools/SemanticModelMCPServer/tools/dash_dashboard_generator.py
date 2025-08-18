@@ -59,11 +59,22 @@ class DashboardManager:
                 raise ValueError(f"Unknown dashboard type: {dashboard_type}")
             
             # Start dashboard in separate thread
-            thread = threading.Thread(target=dashboard.run, daemon=True)
+            thread = threading.Thread(target=dashboard.run, daemon=False)
             thread.start()
             
-            # Wait a moment for server to start
-            time.sleep(2)
+            # Wait a moment for server to start and verify it's running
+            time.sleep(3)
+            
+            # Test if the server is actually running
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                result = sock.connect_ex(('localhost', port))
+                sock.close()
+                if result != 0:
+                    raise RuntimeError(f"Dashboard server failed to start on port {port}")
+            except Exception as e:
+                logger.error(f"Dashboard server verification failed: {str(e)}")
+                raise
             
             dashboard_id = f"{dashboard_type}_{port}"
             self.running_dashboards[dashboard_id] = {
@@ -75,8 +86,8 @@ class DashboardManager:
                 'created_at': datetime.now()
             }
             
-            # Open browser
-            webbrowser.open(f"http://localhost:{port}")
+            # Don't auto-open browser from server
+            # webbrowser.open(f"http://localhost:{port}")
             
             return {
                 'success': True,
@@ -139,7 +150,7 @@ class BaseDashboard:
     def run(self):
         """Run the dashboard server"""
         try:
-            self.app.run_server(
+            self.app.run(
                 debug=False,
                 host='localhost',
                 port=self.port,

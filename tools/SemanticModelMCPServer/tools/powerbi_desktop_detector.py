@@ -326,7 +326,7 @@ class PowerBIDesktopDetector:
             dotnet_dir = os.path.join(os.path.dirname(current_dir), "dotnet")
             
             clr.AddReference(os.path.join(dotnet_dir, "Microsoft.AnalysisServices.AdomdClient.dll"))
-            from Microsoft.AnalysisServices.AdomdClient import AdomdConnection
+            from Microsoft.AnalysisServices.AdomdClient import AdomdConnection  # type: ignore
             
             # Test connection - Power BI Desktop doesn't require authentication
             # Simple connection string: "Data Source=localhost:port"
