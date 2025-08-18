@@ -12,24 +12,55 @@ from typing import Dict, Any, List
 sys.path.append(os.path.dirname(__file__))
 
 try:
-    from dash_dashboard_generator import (
-        create_weight_dashboard,
-        create_dax_dashboard, 
-        list_active_dashboards,
-        stop_dashboard,
-        dashboard_manager
-    )
+    from dash_chart_generator import DashChartGenerator
+    
+    # Create global dashboard manager instance
+    dashboard_manager = DashChartGenerator()
+    
+    def create_weight_dashboard(data, **kwargs):
+        """Create weight tracking dashboard using comprehensive dashboard"""
+        # Convert data if needed
+        if isinstance(data, str):
+            import json
+            data = json.loads(data)
+        
+        # Process DAX results into DataFrame
+        df = dashboard_manager.process_dax_results(data)
+        
+        # Create comprehensive dashboard
+        return dashboard_manager.create_comprehensive_dashboard(df, **kwargs)
+    
+    def create_dax_dashboard(data, **kwargs):
+        """Create DAX analysis dashboard using comprehensive dashboard"""
+        # Convert data if needed
+        if isinstance(data, str):
+            import json
+            data = json.loads(data)
+        
+        # Process DAX results into DataFrame
+        df = dashboard_manager.process_dax_results(data)
+        
+        # Create comprehensive dashboard
+        return dashboard_manager.create_comprehensive_dashboard(df, **kwargs)
+    
+    def list_active_dashboards():
+        return dashboard_manager.list_active_charts()
+    
+    def stop_dashboard(dashboard_id):
+        return dashboard_manager.stop_chart(dashboard_id)
+        
 except ImportError as e:
-    print(f"Warning: Could not import dash dashboard generator: {e}")
-    # Fallback functions
+    print(f"Warning: Could not import dash chart generator: {e}")
+    # Fallback functions - intentionally shadow the try block functions for graceful degradation
+    # pylint: disable=function-redefined
     def create_weight_dashboard(data, **kwargs):
         return {"success": False, "error": "Dash not available"}
     def create_dax_dashboard(data, **kwargs):
         return {"success": False, "error": "Dash not available"}
     def list_active_dashboards():
-        return []
+        return {"success": False, "error": "Dash not available", "active_charts": []}
     def stop_dashboard(dashboard_id):
-        return False
+        return {"success": False, "error": "Dash not available"}
 
 def register_dash_tools(mcp):
     """Register all Dash dashboard tools with the MCP server"""
@@ -158,7 +189,7 @@ def register_dash_tools(mcp):
         """
         try:
             # Import the DAX execution function
-            from local_powerbi_explorer import execute_local_dax_query
+            from powerbi_desktop_tools import execute_local_dax_query
             
             # Execute DAX query
             dax_result = execute_local_dax_query(connection_string, dax_query)
@@ -294,15 +325,36 @@ def register_dash_tools(mcp):
             # This would integrate with the semantic model MCP tools
             config = json.loads(dashboard_config) if isinstance(dashboard_config, str) else dashboard_config
             
-            result = dashboard_manager.create_dashboard(
-                "business_intelligence",
-                {
-                    "workspace_name": workspace_name,
-                    "dataset_name": dataset_name,
-                    "config": config
-                },
-                title=title
+            # Create a placeholder DataFrame for demonstration
+            import pandas as pd
+            import time
+            
+            # Create sample data structure
+            sample_data = {
+                'Category': ['Sales', 'Marketing', 'Operations', 'Finance'],
+                'Value': [1500, 800, 1200, 900],
+                'Trend': [0.15, -0.05, 0.08, 0.12]
+            }
+            df = pd.DataFrame(sample_data)
+            
+            # For now, create a comprehensive dashboard with sample data
+            # In the future, this could integrate with Power BI Service to fetch live data
+            result = dashboard_manager.create_comprehensive_dashboard(
+                df=df,
+                title=title,
+                chart_id=f"bi_dashboard_{workspace_name}_{dataset_name}_{int(time.time())}"
             )
+            
+            # Add metadata about the Power BI integration
+            if isinstance(result, dict):
+                result.update({
+                    "power_bi_integration": {
+                        "workspace_name": workspace_name,
+                        "dataset_name": dataset_name,
+                        "config": config,
+                        "note": "Currently showing sample data. Live Power BI integration requires additional development."
+                    }
+                })
             
             return json.dumps(result, indent=2)
             
