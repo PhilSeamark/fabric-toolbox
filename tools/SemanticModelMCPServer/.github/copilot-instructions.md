@@ -35,13 +35,32 @@ activate_all_powerbi_tools
 ## Tools
 1. **Mandatory** Using semantic_model_mcp_server MCP
 
-## 🚀 PROVEN DirectLake Model Creation Workflow (MODEL_TEST_5 SUCCESS PATTERN)
+## 🚀 PROVEN DirectLake Model Creation Workflow (TOM-FIRST APPROACH)
 
-### **STEP-BY-STEP PROCESS**: Complete Semantic Model Creation
+### **🔧 STEP 0: MANDATORY TOOL ACTIVATION (ALWAYS FIRST!)**
 
-**Use ONLY authentication-enabled `_with_auth` functions for Power BI Service models**
+**🚨 CRITICAL**: Always activate required tools BEFORE starting semantic model creation to avoid "tool disabled" errors.
 
-#### 1. Create Empty Model
+```
+# Option 1: Activate Everything (Recommended for Model Creation)
+activate_all_powerbi_tools()
+
+# Option 2: Activate Specific Categories Needed for DirectLake Models
+activate_powerbi_tom_management()          # For TOM operations
+activate_powerbi_and_lakehouse_tools()     # For Power BI Service & Lakehouse access
+activate_powerbi_lakehouse_management()    # For lakehouse operations
+```
+
+**🎯 PREFERRED APPROACH**: **TOM-FIRST Strategy**
+- ✅ **USE TOM** for all model creation and modification operations
+- ❌ **AVOID TMSL** for model creation (complex JSON management, object deletion risks)
+- 🔧 **TOM Benefits**: Incremental changes, automatic authentication, better error handling
+
+### **STEP-BY-STEP PROCESS**: Complete Semantic Model Creation with TOM
+
+**Use ONLY TOM authentication-enabled `_with_auth` functions for Power BI Service models**
+
+#### **Step 1: Create Empty Model (TOM)**
 ```
 mcp_semantic_mode_tom_create_empty_model_with_auth(
     workspace_name="DAX Performance Tuner Testing",
@@ -50,7 +69,7 @@ mcp_semantic_mode_tom_create_empty_model_with_auth(
 )
 ```
 
-#### 2. Add Lakehouse Expression (REQUIRED for DirectLake)
+#### **Step 2: Add Lakehouse Expression (TOM - REQUIRED for DirectLake)**
 ```
 mcp_semantic_mode_tom_add_lakehouse_expression_with_auth(
     workspace_name="workspace_name", 
@@ -60,7 +79,7 @@ mcp_semantic_mode_tom_add_lakehouse_expression_with_auth(
 )
 ```
 
-#### 3. Add Tables with Correct Data Types
+#### **Step 3: Add Tables with DirectLake Partitions (TOM)**
 ```
 mcp_semantic_mode_tom_add_table_with_lakehouse_partition_with_au(
     workspace_name="workspace_name",
@@ -82,11 +101,11 @@ mcp_semantic_mode_tom_add_table_with_lakehouse_partition_with_au(
 - `datetime2` SQL → `"DateTime"`
 - `float` SQL → `"Double"`
 
-#### 4. Create Relationships
+#### **Step 4: Create Relationships (TOM)**
 ```
-mcp_semantic_mode_tom_add_relationships_to_powerbi_service(
-    workspace_name="workspace_name",
-    dataset_name="model_name",
+mcp_semantic_mode_tom_add_model_relationships(
+    connection_string="auto",  # Uses automatic Power BI Service authentication
+    database_name="model_name",
     relationships_info=[
         {
             "from_table": "adw_FactInternetSales",
@@ -98,16 +117,23 @@ mcp_semantic_mode_tom_add_relationships_to_powerbi_service(
 )
 ```
 
-#### 5. Refresh Model (MANDATORY after relationships)
+#### **Step 5: Refresh Model (TOM - MANDATORY after relationships)**
 ```
+# Method 1: Use TOM refresh (Preferred)
 mcp_semantic_mode_tom_refresh_powerbi_service_model(
     workspace_name="workspace_name",
     dataset_name="model_name",
     refresh_type="calculate"
 )
+
+# Method 2: Alternative using Power BI Service API
+mcp_semantic_mode_refresh_powerbi_dataset(
+    workspace_name="workspace_name",
+    dataset_name="model_name"
+)
 ```
 
-#### 6. Add Key Measures
+#### **Step 6: Add Key Measures (TOM)**
 ```
 mcp_semantic_mode_tom_add_measure_to_powerbi_service(
     workspace_name="workspace_name",
@@ -119,7 +145,7 @@ mcp_semantic_mode_tom_add_measure_to_powerbi_service(
 )
 ```
 
-#### 7. Validate with DAX Query
+#### **Step 7: Validate with DAX Query**
 ```
 mcp_semantic_mode_execute_dax_query(
     workspace_name="workspace_name",
@@ -127,6 +153,31 @@ mcp_semantic_mode_execute_dax_query(
     dax_query="EVALUATE SUMMARIZECOLUMNS(adw_DimDate[CalendarYear], \"Total Sales\", [Total Sales])"
 )
 ```
+
+### **🛡️ TOOL ACTIVATION TROUBLESHOOTING**
+
+**If you encounter "tool disabled" errors:**
+
+1. **Check Tool Activation Status:**
+   ```
+   # This should be your FIRST step when tools appear disabled
+   activate_all_powerbi_tools()
+   ```
+
+2. **Specific Tool Categories for DirectLake Models:**
+   ```
+   activate_powerbi_tom_management()          # TOM operations
+   activate_powerbi_and_lakehouse_tools()     # Power BI Service access
+   activate_powerbi_lakehouse_management()    # Lakehouse queries
+   ```
+
+3. **Verify Activation Success:**
+   ```
+   # Test with a simple function call
+   mcp_semantic_mode_list_powerbi_workspaces()
+   ```
+
+**🚨 NEVER say "tools are disabled" to users - ALWAYS activate them first!**
 
 ### **CRITICAL SUCCESS FACTORS**
 
@@ -157,39 +208,18 @@ mcp_semantic_mode_query_lakehouse_sql_endpoint(
 - Always call `tom_refresh_powerbi_service_model` after adding relationships
 
 ### **DEPRECATED - DO NOT USE**
-❌ Non-authentication functions (token expiration issues):
+❌ **TMSL-based model creation** (complex, error-prone, object deletion risks):
+- `generate_directlake_tmsl_template` → Use TOM functions instead
+- `update_model_using_tmsl` → Use TOM functions instead
+- Manual TMSL manipulation → Use TOM functions instead
+
+❌ **Non-authentication functions** (token expiration issues):
 - `tom_add_table_with_lakehouse_partition` (use `_with_auth` version)
 - `tom_add_lakehouse_expression` (use `_with_auth` version) 
 - `tom_create_empty_model` (use `_with_auth` version)
+
+❌ **Generic table names** (lakehouse connection failures):
 - **NEVER** use generic names like `FactInternetSales`
-
-#### ✅ Validate Lakehouse Schema First
-```
-mcp_semantic_mode_query_lakehouse_sql_endpoint(
-    workspace_id="workspace_id",
-    lakehouse_id="lakehouse_id", 
-    sql_query="SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'adw_FactInternetSales'"
-)
-```
-
-#### ✅ Proper Data Types for Numeric Measures
-```json
-{
-    "name": "SalesAmount",
-    "dataType": "Decimal",        // NOT "String"!
-    "summarizeBy": "Sum"          // NOT "Default" for measures!
-}
-```
-
-#### ✅ Model Refresh is MANDATORY
-- DirectLake relationships require calculation refresh
-- Always call `tom_refresh_powerbi_service_model` after adding relationships
-
-### **DEPRECATED - DO NOT USE**
-❌ Non-authentication functions (token expiration issues):
-- `tom_add_table_with_lakehouse_partition` (use `_with_auth` version)
-- `tom_add_lakehouse_expression` (use `_with_auth` version) 
-- `tom_create_empty_model` (use `_with_auth` version)
 
 ## Lakehouse Configuration (DAX Performance Tuner Testing)
 ```
@@ -201,32 +231,53 @@ Endpoint ID: c1a9f62a-3a88-4732-b0ee-eae6830723e7
 
 ## Hybrid Approach: TMSL for Reading, TOM for Writing
 
+### **🚨 CRITICAL FOR MODEL CREATION**: Always Use TOM-First Approach
+
+**MANDATORY RULE FOR SEMANTIC MODEL CREATION**: When creating new DirectLake semantic models, ALWAYS:
+
+1. **ACTIVATE TOOLS FIRST** - Never proceed without activating required tools
+2. **USE TOM FOR ALL CREATION** - Avoid TMSL for model creation operations
+3. **USE TMSL ONLY FOR READING** - TMSL is excellent for understanding existing models
+
+**🔧 TOOL ACTIVATION FOR MODEL CREATION (REQUIRED):**
+```
+# ALWAYS activate these tools before creating models
+activate_powerbi_tom_management()          # Required for TOM operations
+activate_powerbi_and_lakehouse_tools()     # Required for Power BI Service access
+activate_powerbi_lakehouse_management()    # Required for lakehouse queries
+
+# OR activate everything at once (recommended)
+activate_all_powerbi_tools()
+```
+
 ### **PROVEN STRATEGY**: Use TMSL for Model Definition Retrieval, TOM for Model Modifications
 
 **Key Principle**: Leverage the strengths of each approach:
 - **TMSL**: Excellent for reading complete model definitions and understanding structure
 - **TOM**: Superior for incremental modifications without risk of data loss
 
-#### When to Use TMSL (Reading Operations)
+#### When to Use TMSL (Reading Operations ONLY)
 - ✅ **Model Definition Retrieval**: `get_model_definition` or `get_local_powerbi_tmsl_definition`
 - ✅ **Structure Analysis**: Understanding tables, columns, measures, relationships
 - ✅ **Documentation**: Extracting complete model schemas
 - ✅ **Validation**: Comparing before/after states
 - ✅ **Backup**: Creating complete model snapshots
 
-#### When to Use TOM (Writing Operations)  
-- ✅ **Adding Measures**: `tom_add_measure_to_powerbi_service` or `tom_add_measure_to_semantic_model`
-- ✅ **Creating Tables**: `tom_add_table_to_semantic_model`
-- ✅ **Adding Columns**: `tom_add_column_to_semantic_table`
-- ✅ **Creating Relationships**: `tom_add_relationship_to_semantic_model`
-- ✅ **Updating Properties**: `tom_update_measure_in_semantic_model`
-- ✅ **Incremental Changes**: Any modification that preserves existing objects
+#### When to Use TOM (ALL Creation and Writing Operations)  
+- ✅ **Creating Empty Models**: `tom_create_empty_model_with_auth`
+- ✅ **Adding Lakehouse Expressions**: `tom_add_lakehouse_expression_with_auth`
+- ✅ **Creating Tables**: `tom_add_table_with_lakehouse_partition_with_au`
+- ✅ **Adding Measures**: `tom_add_measure_to_powerbi_service`
+- ✅ **Creating Relationships**: `tom_add_model_relationships`
+- ✅ **Updating Properties**: `tom_update_measure_in_powerbi_service`
+- ✅ **Model Refresh**: `tom_refresh_powerbi_service_model`
 
-#### Hybrid Workflow Pattern
-1. **Check Current State** (TMSL): `get_model_definition` → Understand existing structure
-2. **Plan Modifications** (Analysis): Identify what needs to be added/changed
-3. **Apply Changes** (TOM): Use specific TOM functions for targeted modifications
-4. **Verify Results** (TMSL): `get_model_definition` → Confirm changes applied correctly
+#### TOM-First Workflow Pattern (RECOMMENDED)
+1. **Activate Tools** (MANDATORY): `activate_all_powerbi_tools()` 
+2. **Create Model** (TOM): Use `tom_create_empty_model_with_auth`
+3. **Add Components** (TOM): Use TOM functions for all additions
+4. **Verify Results** (TMSL): Use `get_model_definition` to confirm structure
+5. **Never Use TMSL for Creation**: TMSL is for reading, TOM is for writing
 
 ## TMSL Reference
 When working with TMSL (Tabular Model Scripting Language) objects, **strongly recommend** referring to the official Microsoft Learn documentation:
