@@ -2242,6 +2242,62 @@ def register_tom_tools(mcp_instance):
         )
 
     @mcp_instance.tool()
+    def tom_update_measure_in_powerbi_service(
+        workspace_name: str,
+        dataset_name: str,
+        table_name: str,
+        measure_name: str,
+        expression: Optional[str] = None,
+        format_string: Optional[str] = None,
+        description: Optional[str] = None,
+        display_folder: Optional[str] = None
+    ) -> str:
+        """
+        Update an existing measure in a Power BI Service semantic model using TOM with automatic authentication.
+        
+        This tool allows you to modify specific properties of an existing measure without
+        affecting other measures or table structures. You can update:
+        - DAX expression
+        - Format string (e.g., "$#,##0.00", "0.00%")
+        - Description
+        - Display folder
+        
+        Only the properties you specify will be updated; others remain unchanged.
+        
+        Args:
+            workspace_name: The Power BI workspace name
+            dataset_name: The semantic model/dataset name
+            table_name: Name of the table containing the measure
+            measure_name: Name of the measure to update
+            expression: Optional new DAX expression for the measure
+            format_string: Optional new format string for the measure
+            description: Optional new description for the measure
+            display_folder: Optional new display folder for the measure
+            
+        Returns:
+            JSON string with operation results, including what changes were made
+        """
+        try:
+            # Get access token automatically
+            token = get_access_token()
+            
+            # Construct Power BI Service connection string
+            connection_string = f"Data Source=powerbi://api.powerbi.com/v1.0/myorg/{workspace_name};Password={token};"
+            
+            # Call existing backend function
+            return tom_update_measure_in_model(
+                connection_string=connection_string,
+                table_name=table_name,
+                measure_name=measure_name,
+                expression=expression,
+                format_string=format_string,
+                description=description,
+                display_folder=display_folder
+            )
+        except Exception as e:
+            return json.dumps({"success": False, "error": str(e)})
+
+    @mcp_instance.tool()
     def tom_list_tables_in_powerbi_service(
         workspace_name: str,
         dataset_name: str
@@ -2691,6 +2747,7 @@ def register_activation_tools(mcp_instance):
             "message": "TOM management tools are now active",
             "available_tools": [
                 "tom_add_measure_to_powerbi_service",
+                "tom_update_measure_in_powerbi_service",
                 "tom_delete_measure_from_powerbi_service",
                 "tom_list_tables_in_powerbi_service", 
                 "tom_create_empty_model_with_auth",
