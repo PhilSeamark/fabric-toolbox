@@ -11,7 +11,6 @@ from tools.fabric_metadata import list_workspaces, list_datasets, get_workspace_
 from tools.bpa_tools import register_bpa_tools
 from tools.powerbi_desktop_tools import register_powerbi_desktop_tools
 from tools.microsoft_learn_tools import register_microsoft_learn_tools
-from tools.chart_tools import register_chart_tools
 import urllib.parse
 from src.helper import count_nodes_with_name
 from src.tmsl_validator import validate_tmsl_structure
@@ -75,7 +74,6 @@ mcp = FastMCP(
     - Get Microsoft Learn Content by URL (NEW)
     - **🆕 Best Practice Analyzer (BPA) Tools (NEW)**
     - **🆕 Power BI Desktop Detection Tools (NEW)**
-    - **🆕 Chart Generation and Visualization Tools (NEW)**
     - **🆕 Tabular Object Model (TOM) Tools (NEW)**
 
     ## 🆕 Best Practice Analyzer (BPA) Features:
@@ -126,59 +124,7 @@ mcp = FastMCP(
     - **DirectLake** - Implementation guides, best practices, and troubleshooting
     - **Power BI** - Features, configuration, and advanced techniques
 
-    ## 🎨 Chart Generation and Visualization Tools (NEW):
-    The server now includes comprehensive chart generation capabilities that can automatically create visualizations from DAX query results.
-    
-    **Available Chart Generation Tools:**
-    - `generate_chart_from_dax_results` - Generate charts from existing DAX query results
-    - `analyze_dax_results_for_charts` - Analyze data structure and suggest optimal chart types
-    - `execute_dax_with_visualization` - Execute DAX query and auto-generate charts (Power BI Service)
-    - `execute_local_dax_with_visualization` - Execute DAX query and auto-generate charts (Local Power BI Desktop)
-    - `create_comprehensive_dashboard` - Create multi-chart dashboards for table analysis
-    
-    **Supported Chart Types:**
-    - **Line Charts** - Perfect for time series and trend analysis
-    - **Bar Charts** - Ideal for categorical comparisons (horizontal and vertical)
-    - **Pie Charts** - Great for showing proportions and distributions
-    - **Scatter Plots** - Excellent for correlation analysis between numeric variables
-    - **Heatmaps** - Visualize correlation matrices and relationships
-    - **Comprehensive Dashboards** - Multi-chart views with summary statistics
-    - **Auto-Generated Charts** - AI-powered chart type selection based on data characteristics
-    
-    **Chart Generation Features:**
-    - **Interactive Charts** - HTML-based interactive visualizations using Vega-Lite
-    - **Static Charts** - High-quality PNG charts using Matplotlib
-    - **Auto-Detection** - Intelligent chart type suggestions based on data structure
-    - **Custom Styling** - Professional themes and color schemes
-    - **Multiple Formats** - Support for both web-ready and print-ready outputs
-    - **Comprehensive Reports** - Markdown reports with analysis and insights
-    
-    **Example Chart Generation Usage:**
-    ```
-    # Execute DAX query and auto-generate visualizations
-    result = execute_dax_with_visualization(
-        "MyWorkspace", "MyDataset", 
-        "EVALUATE SUMMARIZE(Sales, Sales[Category], \"Total\", SUM(Sales[Amount]))",
-        auto_charts=True
-    )
-    
-    # Generate specific chart type from existing DAX results
-    chart = generate_chart_from_dax_results(
-        dax_results, "bar", 
-        chart_title="Sales by Category",
-        interactive=True
-    )
-    
-    # Create comprehensive dashboard for a table
-    dashboard = create_comprehensive_dashboard(
-        table_name="Sales",
-        workspace_name="MyWorkspace",
-        dataset_name="MyDataset",
-        dashboard_title="Sales Analysis Dashboard"
-    )
-    ```
-    
-    ## 🚀 Tabular Object Model (TOM) Tools (NEW):
+    ## 🚀 Tabular Object Model (TOM) Tools:
     The server now includes advanced TOM-based tools for semantic model manipulation, providing a superior alternative to TMSL for many operations.
     
     **TOM Advantages over TMSL:**
@@ -1729,6 +1675,7 @@ def register_tom_tools(mcp_instance):
         tom_connect_to_server_and_database,
         tom_list_tables_by_database_name,
         tom_add_measure_by_database_name,
+        tom_delete_measure_by_database_name,
         # NEW: Complete model creation functions
         tom_create_empty_semantic_model_with_auth,
         tom_add_lakehouse_expression_with_auth,
@@ -2234,6 +2181,67 @@ def register_tom_tools(mcp_instance):
         )
 
     @mcp_instance.tool()
+    def tom_delete_measure_from_powerbi_service(
+        workspace_name: str,
+        dataset_name: str,
+        table_name: str,
+        measure_name: str
+    ) -> str:
+        """
+        Delete a measure from a Power BI Service semantic model using TOM with automatic authentication.
+        
+        This enhanced TOM function automatically handles Power BI Service authentication and connection string construction,
+        making it easy to delete measures from cloud-hosted semantic models without manual token management.
+        
+        Args:
+            workspace_name: The Power BI workspace name
+            dataset_name: The dataset/model name
+            table_name: Name of the table containing the measure
+            measure_name: Name of the measure to delete
+            
+        Returns:
+            JSON string with operation results, including success status and deletion details
+        """
+        import urllib.parse
+        
+        # Get access token for Power BI Service authentication
+        access_token = get_access_token()
+        if not access_token:
+            return json.dumps({
+                "success": False,
+                "error": "No valid access token available. Please check authentication.",
+                "error_type": "authentication_error"
+            }, indent=2)
+        
+        # Validate required parameters
+        if not workspace_name or not workspace_name.strip():
+            return json.dumps({
+                "success": False,
+                "error": "Workspace name is required and cannot be empty.",
+                "error_type": "parameter_error"
+            }, indent=2)
+        
+        if not dataset_name or not dataset_name.strip():
+            return json.dumps({
+                "success": False,
+                "error": "Dataset name is required and cannot be empty.",
+                "error_type": "parameter_error"
+            }, indent=2)
+        
+        # Construct Power BI Service connection string WITHOUT catalog
+        # Let TOM select the database by name instead  
+        workspace_name_encoded = urllib.parse.quote(workspace_name)
+        server_connection_string = f"Data Source=powerbi://api.powerbi.com/v1.0/myorg/{workspace_name_encoded};Password={access_token};"
+        
+        # Use enhanced TOM function with explicit database selection
+        return tom_delete_measure_by_database_name(
+            server_connection_string=server_connection_string,
+            database_name=dataset_name,
+            table_name=table_name,
+            measure_name=measure_name
+        )
+
+    @mcp_instance.tool()
     def tom_list_tables_in_powerbi_service(
         workspace_name: str,
         dataset_name: str
@@ -2683,6 +2691,7 @@ def register_activation_tools(mcp_instance):
             "message": "TOM management tools are now active",
             "available_tools": [
                 "tom_add_measure_to_powerbi_service",
+                "tom_delete_measure_from_powerbi_service",
                 "tom_list_tables_in_powerbi_service", 
                 "tom_create_empty_model_with_auth",
                 "tom_add_lakehouse_expression_with_auth",
@@ -2704,25 +2713,6 @@ def register_activation_tools(mcp_instance):
                 "get_model_definition",
                 "validate_tmsl_structure"
             ]
-        }, indent=2)
-    
-    @mcp_instance.tool()
-    def activate_powerbi_dashboard_creation() -> str:
-        """📊 Activate dashboard creation and visualization tools."""
-        return json.dumps({
-            "status": "success",
-            "message": "✅ Dashboard creation tools are now active and ready to use!",
-            "available_tools": [
-                "generate_chart_from_dax_results - Create charts from DAX query results",
-                "analyze_dax_results_for_charts - Get chart type suggestions",
-                "execute_dax_with_visualization - Execute DAX + auto-generate charts",
-                "create_comprehensive_dashboard - Multi-chart dashboard from table data",
-                "list_active_dashboards - View running dashboards",
-                "stop_dashboard - Stop specific dashboard by ID"
-            ],
-            "quick_start": "Try: execute_dax_with_visualization('workspace', 'dataset', 'EVALUATE table')",
-            "chart_types": ["bar", "line", "pie", "scatter", "heatmap", "dashboard"],
-            "note": "All charts use pure Dash/Plotly - no Vega-Lite dependencies!"
         }, indent=2)
     
     @mcp_instance.tool()
@@ -2822,11 +2812,10 @@ def register_activation_tools(mcp_instance):
             "status": "success",
             "message": "✅ ALL Power BI tools are now active and ready to use!",
             "activated_categories": activated_categories,
-            "total_tools_activated": "70+ tools across all categories",
-            "note": "You can now use any semantic model, BPA, chart, or Power BI tool without additional activation",
+            "total_tools_activated": "50+ tools across all categories",
+            "note": "You can now use any semantic model, BPA, or Power BI tool without additional activation",
             "quick_starts": {
                 "BPA": "analyze_model_bpa('workspace', 'dataset')",
-                "Charts": "execute_dax_with_visualization('workspace', 'dataset', 'DAX query')",
                 "Local Power BI": "detect_local_powerbi_desktop()",
                 "Workspaces": "list_powerbi_workspaces()"
             }
@@ -2839,18 +2828,7 @@ def main():
     register_bpa_tools(mcp)
     register_powerbi_desktop_tools(mcp)
     register_microsoft_learn_tools(mcp)
-    register_chart_tools(mcp)  # Legacy Vega-Lite charts
-    register_tom_tools(mcp)  # NEW: TOM-based semantic model tools
-    
-    # Register new Dash dashboard tools
-    try:
-        from tools.dash_tools import register_dash_tools
-        register_dash_tools(mcp)
-        logging.info("Dash dashboard tools registered successfully")
-    except ImportError as e:
-        logging.warning(f"Dash tools not available: {e}")
-    except Exception as e:
-        logging.error(f"Error registering Dash tools: {e}")
+    register_tom_tools(mcp)  # TOM-based semantic model tools
 
     # Register tool activation functions
     register_activation_tools(mcp)

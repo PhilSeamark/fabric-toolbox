@@ -273,52 +273,6 @@ def register_prompts(mcp):
         """Compare different Analysis Services connection approaches"""
         return "Can you explain the differences between connecting to Power BI Desktop, Power BI Service, and Analysis Services? Show me the connection requirements and use cases."
 
-    # 🆕 Interactive Dash Dashboard Prompts
-    @mcp.prompt
-    def create_weight_tracking_dashboard() -> str:
-        """Create an interactive weight tracking dashboard"""
-        return "Can you create an interactive weight tracking dashboard from my DAX query results? I want a professional dashboard with charts, summary statistics, and date filtering."
-
-    @mcp.prompt
-    def create_interactive_dashboard() -> str:
-        """Create an interactive dashboard from DAX query results"""
-        return "Can you create an interactive dashboard from my DAX query results? Include multiple chart types, filtering options, and professional styling."
-
-    @mcp.prompt
-    def execute_dax_with_dashboard() -> str:
-        """Execute DAX query and immediately create interactive dashboard"""
-        return "Can you execute a DAX query against my Power BI model and create an interactive dashboard with the results? I want a seamless data-to-visualization workflow."
-
-    @mcp.prompt
-    def create_business_intelligence_dashboard() -> str:
-        """Create comprehensive business intelligence dashboard"""
-        return "Can you create a comprehensive business intelligence dashboard for my workspace and dataset? Include KPIs, multiple chart types, and real-time data refresh capabilities."
-
-    @mcp.prompt
-    def list_running_dashboards() -> str:
-        """List all currently running dashboard instances"""
-        return "Can you show me all currently running dashboard instances? I want to manage my active dashboards and see their URLs and status."
-
-    @mcp.prompt
-    def dashboard_management() -> str:
-        """Help with dashboard lifecycle management"""
-        return "Can you help me manage my dashboard instances? Show me what's running, help me stop unused dashboards, or start new ones."
-
-    @mcp.prompt
-    def create_dax_analysis_dashboard() -> str:
-        """Create a general DAX analysis dashboard"""
-        return "Can you create a general DAX analysis dashboard with multiple chart types? I want to explore my data with line charts, bar charts, and statistical analysis."
-
-    @mcp.prompt
-    def weight_progress_visualization() -> str:
-        """Visualize weight loss/fitness progress with interactive dashboard"""
-        return "Can you create an interactive dashboard to track my weight loss progress? Include trend analysis, daily changes, cumulative progress, and goal tracking."
-
-    @mcp.prompt
-    def business_analytics_workflow() -> str:
-        """Set up business analytics workflow with interactive dashboards"""
-        return "Can you help me set up a business analytics workflow using interactive dashboards? Show me how to connect data, create visualizations, and share insights."
-
     @mcp.prompt
     def dashboard_vs_static_charts() -> str:
         """Compare interactive dashboards vs static chart generation"""

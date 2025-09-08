@@ -2,8 +2,6 @@
 
 A Model Context Protocol (MCP) server for connecting to Microsoft Fabric and Power BI semantic models. This server provides tools to browse workspaces, list datasets, retrieve model definitions (TMSL), execute DAX queries, and create or modify semantic models against semantic models.
 
-**🆕 NEW: Interactive Dash Dashboards** - Professional, interactive web-based dashboards for data visualization and business intelligence!
-
 **🆕 NEW: Best Practice Analyzer** - Now includes comprehensive analysis of semantic models against 71 industry best practice rules!
 
 A tool designed for Semantic model authors to chat with your Semantic Model in VS Code Co-pilot using your own LLM!!!
@@ -27,9 +25,6 @@ Co-pilot in VS Code has far fewer limitations than some MCP Clients and can also
 - **Microsoft Learn Integration**: Search and access official Microsoft documentation, tutorials, and best practices
 - **TMSL Validation**: Enhanced TMSL structure validation with detailed error reporting
 - **Workspace Navigation**: Get workspace IDs and navigate between different environments
-- **🆕 Interactive Dash Dashboards**: Professional web-based dashboards with real-time interactivity, data filtering, and enterprise-grade visualization
-- **🆕 Chart Generation & Visualization**: Create interactive charts, line graphs, bar charts, scatter plots, and comprehensive dashboards from DAX query results
-- **🆕 Business Intelligence Platform**: Transform from simple chart generation to full BI dashboard capabilities with Plotly and Dash integration
 - **🆕 Best Practice Analyzer (BPA)**: Comprehensive analysis of semantic models against industry best practices and Microsoft recommendations
 - **🆕 Power BI Desktop Detection**: Automatically detect and connect to local Power BI Desktop instances for development and testing
 
@@ -309,6 +304,8 @@ AI: [Searches Microsoft Learn for specific DAX patterns and recommendations]
 5. **✅ Verify Fixes**: `"Re-analyze the model after applying BPA recommendations"`
 
 The Best Practice Analyzer ensures your semantic models follow Microsoft's recommended patterns and industry standards, resulting in better performance, maintainability, and user experience! 🎉
+
+## Installation
 
 ## 📊 Interactive Dash Dashboards
 
